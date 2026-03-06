@@ -49,7 +49,7 @@ overflow-x: hidden;
 body::before {
 content:'';
 position:fixed;inset:0;
-background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+background-image:url(“data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E”);
 pointer-events:none;z-index:900;
 }
 
@@ -61,6 +61,7 @@ max-width:440px;
 height:100dvh;
 flex-direction:column;
 overflow:hidden;
+position:relative;
 }
 .screen.active {
 display:flex;
@@ -73,7 +74,7 @@ to{opacity:1;transform:translateY(0)}
 
 /* ── Nav ── */
 .nav {
-padding:52px 28px 0;
+padding:calc(12px + env(safe-area-inset-top, 0px)) 24px 0;
 display:flex;align-items:center;justify-content:space-between;
 flex-shrink:0;
 }
@@ -82,7 +83,7 @@ flex-shrink:0;
 
 /* ── Section label ── */
 .section-tag {
-margin:16px 28px 0;
+margin:10px 24px 0;
 display:inline-flex;
 align-items:center;gap:7px;
 font-family:var(--mono);font-size:9px;letter-spacing:.14em;
@@ -98,7 +99,7 @@ background:var(--acc);box-shadow:0 0 6px var(--acc);
 
 /* ── Progress ── */
 .prog {
-padding:14px 28px 0;
+padding:10px 24px 0;
 display:flex;align-items:center;gap:12px;
 flex-shrink:0;
 }
@@ -119,19 +120,19 @@ background:var(--acc);box-shadow:0 0 8px var(--acc);
 /* ── Content ── */
 .content {
 flex:1;
-padding:24px 28px 0;
-display:flex;flex-direction:column;gap:22px;
+padding:16px 24px 0;
+display:flex;flex-direction:column;gap:16px;
 overflow-y:auto;overflow-x:hidden;
 -webkit-overflow-scrolling:touch;
 min-height:0;
 }
 
 /* ── Question blocks ── */
-.q-block { display:flex;flex-direction:column;gap:7px; }
-.q-title { font-family:var(--serif);font-size:21px;line-height:1.4;color:var(--text); }
+.q-block { display:flex;flex-direction:column;gap:6px; }
+.q-title { font-family:var(--serif);font-size:19px;line-height:1.35;color:var(--text); }
 .q-title em { font-style:italic;color:var(--acc); }
-.q-sub { font-size:13px;line-height:1.65;color:var(--mut);font-weight:300; }
-.q-sm { font-size:15px;font-family:var(--sans);font-weight:400;line-height:1.4;color:var(--text); }
+.q-sub { font-size:12px;line-height:1.6;color:var(--mut);font-weight:300; }
+.q-sm { font-size:14px;font-family:var(--sans);font-weight:400;line-height:1.4;color:var(--text); }
 
 /* ── Input: text/number ── */
 .field {
@@ -174,33 +175,34 @@ font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;color:var(--mut);
 }
 
 /* ── 5x5 Affect Grid ── */
-.affect-grid-wrap { display:flex;flex-direction:column;gap:12px; }
+.affect-grid-wrap { display:flex;flex-direction:column;gap:8px; }
 
 .affect-axis-wrap {
-display:grid;
-grid-template-columns:52px 1fr;
-grid-template-rows:auto auto auto;
-gap:0;
-align-items:center;
+display:flex;
+flex-direction:row;
+align-items:stretch;
+gap:6px;
 }
 .affect-y-axis {
-grid-column:1;grid-row:1/4;
 display:flex;flex-direction:column;align-items:center;justify-content:space-between;
-height:100%;padding:4px 0;gap:4px;
+padding:2px 0;flex-shrink:0;width:36px;
 }
 .affect-y-top,.affect-y-bot {
-font-family:var(--mono);font-size:9px;letter-spacing:.06em;
+font-family:var(--mono);font-size:8px;letter-spacing:.04em;
 color:var(--mut);text-transform:uppercase;
-writing-mode:horizontal-tb;text-align:center;line-height:1.3;
-max-width:44px;
+text-align:center;line-height:1.3;
 }
 .affect-y-arrow {
-font-family:var(--mono);font-size:14px;color:var(--dim);
-writing-mode:vertical-rl;transform:rotate(180deg);letter-spacing:.2em;
+font-family:var(--mono);font-size:13px;color:var(--dim);
 }
-.affect-grid-inner { grid-column:2;grid-row:1/4;display:flex;flex-direction:column;gap:4px; }
+.affect-grid-inner {
+flex:1;display:flex;flex-direction:column;gap:5px;min-width:0;
+}
 .affect-grid {
-display:grid;grid-template-columns:repeat(5,1fr);gap:5px;
+display:grid;
+grid-template-columns:repeat(5,1fr);
+gap:5px;
+width:100%;
 }
 .ag-cell {
 aspect-ratio:1;border-radius:7px;
@@ -218,36 +220,35 @@ box-shadow:0 0 0 2px var(--adim),inset 0 0 0 1px var(--acc);
 content:'';width:7px;height:7px;border-radius:50%;
 background:var(--acc);box-shadow:0 0 8px var(--acc);
 }
-/* corner quadrant tints — very subtle */
-.ag-cell[data-valence="1"][data-arousal="5"] { background:rgba(196,147,107,.06); }
-.ag-cell[data-valence="5"][data-arousal="5"] { background:rgba(139,196,165,.06); }
-.ag-cell[data-valence="1"][data-arousal="1"] { background:rgba(100,100,140,.06); }
-.ag-cell[data-valence="5"][data-arousal="1"] { background:rgba(139,196,165,.04); }
+.ag-cell[data-valence=“1”][data-arousal=“5”] { background:rgba(196,147,107,.07); }
+.ag-cell[data-valence=“5”][data-arousal=“5”] { background:rgba(139,196,165,.07); }
+.ag-cell[data-valence=“1”][data-arousal=“1”] { background:rgba(100,100,160,.07); }
+.ag-cell[data-valence=“5”][data-arousal=“1”] { background:rgba(139,196,165,.04); }
 
 .affect-x-axis {
 display:flex;justify-content:space-between;align-items:center;
 padding:0 2px;
 }
 .affect-x-label {
-font-family:var(--mono);font-size:9px;letter-spacing:.06em;
+font-family:var(--mono);font-size:8.5px;letter-spacing:.04em;
 color:var(--mut);text-transform:uppercase;
 }
 .affect-x-arrow {
-font-family:var(--mono);font-size:12px;color:var(--dim);letter-spacing:.15em;
+font-family:var(--mono);font-size:11px;color:var(--dim);
 }
 .affect-quadrants {
-display:grid;grid-template-columns:1fr 1fr;gap:4px;
+display:grid;grid-template-columns:1fr 1fr;
 padding:0 2px;
 }
 .aq {
-font-family:var(--mono);font-size:8px;color:var(--dim);
-letter-spacing:.05em;line-height:1.4;
+font-family:var(--mono);font-size:7.5px;color:var(--dim);
+letter-spacing:.03em;line-height:1.5;
 }
 .aq:last-child { text-align:right; }
 .affect-selected {
 font-family:var(--mono);font-size:11px;color:var(--acc);
 letter-spacing:.05em;min-height:16px;text-align:center;
-padding:4px 0;
+padding:2px 0;
 }
 
 /* ── Pills ── */
@@ -315,7 +316,7 @@ color:var(--warn);text-transform:uppercase;
 
 /* ── Bottom ── */
 .bottom {
-padding:20px 28px calc(28px + env(safe-area-inset-bottom,0px));
+padding:16px 24px calc(20px + env(safe-area-inset-bottom,0px));
 display:flex;flex-direction:column;gap:8px;flex-shrink:0;
 }
 .btn {
@@ -333,8 +334,8 @@ cursor:pointer;transition:all .16s ease;border:none;letter-spacing:.02em;
 /* ── Welcome / splash ── */
 .welcome-hero {
 flex:1;display:flex;flex-direction:column;
-justify-content:flex-end;padding:0 28px 36px;
-position:relative;min-height:260px;
+justify-content:flex-end;padding:0 24px 24px;
+position:relative;min-height:200px;
 }
 .orb-field {
 position:absolute;top:0;left:0;right:0;bottom:0;
@@ -378,7 +379,8 @@ display:flex;align-items:center;gap:5px;
 .complete-body {
 flex:1;display:flex;flex-direction:column;
 align-items:center;justify-content:center;
-padding:32px 28px;gap:20px;text-align:center;
+padding:20px 24px;gap:16px;text-align:center;
+overflow-y:auto;min-height:0;
 }
 .check {
 width:52px;height:52px;border-radius:50%;
@@ -449,22 +451,22 @@ box-shadow:0 0 8px var(--aglow);animation:bth 4s ease-in-out infinite;
 .breath-l { font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--dim);text-transform:uppercase; }
 
 /* ── PSQI / BPQ scale ── */
-.scale-row { display:flex;gap:6px; }
+.scale-row { display:flex;gap:5px; }
 .scale-cell {
 flex:1;background:var(--sur);border:1px solid var(--bdr);border-radius:8px;
-padding:10px 4px;cursor:pointer;transition:all .14s ease;
-display:flex;flex-direction:column;align-items:center;gap:4px;
+padding:9px 3px;cursor:pointer;transition:all .14s ease;
+display:flex;flex-direction:column;align-items:center;gap:3px;
 font-family:var(--mono);user-select:none;
 }
 .scale-cell:active { transform:scale(.94); }
 .scale-cell.on { background:var(--adim);border-color:var(--acc2); }
 .scale-n { font-size:14px;color:var(--mut); }
 .scale-cell.on .scale-n { color:var(--acc); }
-.scale-l { font-size:8px;color:var(--dim);text-align:center;line-height:1.3;letter-spacing:.02em; }
+.scale-l { font-size:7.5px;color:var(--dim);text-align:center;line-height:1.3;letter-spacing:.02em; }
 
 /* ── BPQ items ── */
-.bpq-item { display:flex;flex-direction:column;gap:8px; }
-.bpq-q { font-size:13px;line-height:1.55;color:var(--text);font-weight:300; }
+.bpq-item { display:flex;flex-direction:column;gap:6px; }
+.bpq-q { font-size:12px;line-height:1.5;color:var(--text);font-weight:300; }
 </style>
 
 </head>
@@ -743,7 +745,6 @@ font-family:var(--mono);user-select:none;
       <div class="g-opt" onclick="pickActivity(this)"><span class="ic">✦</span>Other</div>
     </div>
   </div>
-  <div style="flex:1"></div>
   <div class="bottom">
     <button class="btn btn-p" id="btn-p1" disabled onclick="goTo('s-p2')">Continue</button>
   </div>
@@ -755,7 +756,7 @@ font-family:var(--mono);user-select:none;
   <div class="nav"><div class="nav-id">OSU · AFFECTIVE SCIENCE</div><div class="nav-time" id="ts-p2"></div></div>
   <div class="section-tag"><div class="dot"></div>Momentary Prompt</div>
   <div class="prog"><div class="prog-track"><div class="prog-fill" style="width:40%"></div></div><div class="prog-n" id="pn-p2">2 / 4</div></div>
-  <div class="content">
+  <div class="content" style="gap:14px">
     <div class="q-block">
       <div class="q-title">How do you <em>feel?</em></div>
       <div class="q-sub">Tap the cell that best captures your current state.</div>
@@ -775,19 +776,18 @@ font-family:var(--mono);user-select:none;
             <div class="affect-x-label">Pleasant</div>
           </div>
           <div class="affect-quadrants">
-            <div class="aq">Distressed ↖<br>Fearful · Angry</div>
-            <div class="aq">↗ Excited<br>Elated · Alert</div>
+            <div class="aq">↖ Distressed · Fearful</div>
+            <div class="aq">Excited · Elated ↗</div>
           </div>
-          <div class="affect-quadrants" style="margin-top:2px">
-            <div class="aq">Sad ↙<br>Bored · Fatigued</div>
-            <div class="aq">↘ Calm<br>Relaxed · Serene</div>
+          <div class="affect-quadrants">
+            <div class="aq">↙ Sad · Bored</div>
+            <div class="aq">Calm · Serene ↘</div>
           </div>
         </div>
       </div>
       <div class="affect-selected" id="affect-selected">Tap a cell to record your state</div>
     </div>
   </div>
-  <div style="flex:1"></div>
   <div class="bottom">
     <button class="btn btn-p" id="btn-p2" disabled onclick="goTo('s-p3')">Continue</button>
   </div>
@@ -815,7 +815,6 @@ font-family:var(--mono);user-select:none;
       <div class="slider-ends"><span>Not at all (0)</span><span>Extremely intense (100)</span></div>
     </div>
   </div>
-  <div style="flex:1"></div>
   <div class="bottom">
     <button class="btn btn-p" id="btn-p3" disabled onclick="goTo('s-p4')">Continue</button>
   </div>
@@ -834,7 +833,6 @@ font-family:var(--mono);user-select:none;
     </div>
     <div class="word-cloud" id="word-cloud"></div>
   </div>
-  <div style="flex:1"></div>
   <div class="bottom">
     <button class="btn btn-p" id="btn-p4" onclick="evalBranching()">Continue</button>
   </div>
@@ -845,7 +843,7 @@ font-family:var(--mono);user-select:none;
 <div class="screen" id="s-br1">
   <div class="nav"><div class="nav-id">OSU · AFFECTIVE SCIENCE</div><div class="nav-time" id="ts-br1"></div></div>
   <div class="section-tag warn"><div class="dot"></div>Follow-up</div>
-  <div class="content" style="padding-top:28px">
+  <div class="content" style="padding-top:16px">
     <div class="branch-card">
       <div class="branch-tag">Misattribution check</div>
       <div class="branch-q" id="br1-q">You noted feeling <strong id="br1-words"></strong>. To what extent do you think this feeling is driven by a <em>physical need</em> (like hunger, fatigue, or muscle tension) rather than a psychological event?</div>
@@ -857,7 +855,6 @@ font-family:var(--mono);user-select:none;
       </div>
     </div>
   </div>
-  <div style="flex:1"></div>
   <div class="bottom">
     <button class="btn btn-warn" id="btn-br1" disabled onclick="evalBranch2()">Continue</button>
   </div>
@@ -868,7 +865,7 @@ font-family:var(--mono);user-select:none;
 <div class="screen" id="s-br2">
   <div class="nav"><div class="nav-id">OSU · AFFECTIVE SCIENCE</div><div class="nav-time" id="ts-br2"></div></div>
   <div class="section-tag warn"><div class="dot"></div>Follow-up</div>
-  <div class="content" style="padding-top:28px">
+  <div class="content" style="padding-top:16px">
     <div class="branch-card">
       <div class="branch-tag">Contextual mismatch</div>
       <div class="branch-q">You noted feeling <strong id="br2-words"></strong>, but you were <strong id="br2-activity"></strong>. Is there a clear reason for this physical sensation in your environment right now?</div>
@@ -886,7 +883,6 @@ font-family:var(--mono);user-select:none;
       </div>
     </div>
   </div>
-  <div style="flex:1"></div>
   <div class="bottom">
     <button class="btn btn-warn" id="btn-br2" disabled onclick="submitPrompt()">Submit</button>
   </div>
