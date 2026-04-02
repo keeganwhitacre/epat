@@ -143,62 +143,69 @@ const BeatDetector = (function () {
   }
 
   async function startCamera() {
-    // Strategy: enumerate rear cameras, try each one until we find one
-    // that supports torch. The torch-capable camera is the primary wide lens
-    // (physically adjacent to the LED), which gives the best PPG signal.
-    // This avoids accidentally using the macro, ultrawide, or telephoto lens.
+    // Step 1: Open any rear camera first to trigger permission grant.
+    // Before getUserMedia, iOS Safari returns empty deviceIds so we can't
+    // iterate by ID. facingMode: "environment" reliably gets a rear camera.
+    if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; }
 
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const cameras = devices.filter((d) => d.kind === "videoinput");
-    console.log(`[PAT] Found ${cameras.length} cameras:`, cameras.map((c, i) => `${i}: ${c.label || 'unlabeled'} (${c.deviceId.slice(0,8)}...)`));
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { exact: "environment" },
+        width: { ideal: IMAGE_SIZE },
+        height: { ideal: IMAGE_SIZE },
+      },
+    });
 
+    // Try torch on whatever rear camera we got
     let torchWorking = false;
+    try {
+      const track = stream.getVideoTracks()[0];
+      await track.applyConstraints({ advanced: [{ torch: true }] });
+      torchWorking = true;
+      console.log(`[PAT] ✓ Torch works on: ${track.label}`);
+    } catch (e) {
+      console.log(`[PAT] ✗ No torch on initial camera, trying others...`);
+    }
 
-    // Try rear cameras in reverse order (most likely to hit primary rear first on iOS)
-    // If torch works, we keep that camera. If not, try the next.
-    for (let i = cameras.length - 1; i >= 0; i--) {
-      const cam = cameras[i];
-      try {
-        // Stop any previous attempt
-        if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; }
+    // Step 2: If torch didn't work (e.g. we got the ultrawide/macro), 
+    // now enumerate with labels (permission is granted) and try each rear camera.
+    if (!torchWorking) {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const cameras = devices.filter((d) => d.kind === "videoinput");
+      console.log(`[PAT] Cameras available:`, cameras.map((c, i) => `${i}: ${c.label}`));
 
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            deviceId: { exact: cam.deviceId },
-            width: { ideal: IMAGE_SIZE },
-            height: { ideal: IMAGE_SIZE },
-          },
-        });
+      for (const cam of cameras) {
+        // Skip front cameras
+        const label = (cam.label || "").toLowerCase();
+        if (label.includes("front") || label.includes("facetime")) continue;
 
-        const track = stream.getVideoTracks()[0];
-        console.log(`[PAT] Trying camera ${i}: ${track.label}`);
-
-        // Test if torch works on this camera
         try {
-          await track.applyConstraints({ advanced: [{ torch: true }] });
-          torchWorking = true;
-          console.log(`[PAT] ✓ Torch works on camera ${i}: ${track.label}`);
-          break; // Found our camera
-        } catch (torchErr) {
-          console.log(`[PAT] ✗ No torch on camera ${i}: ${track.label}`);
-          // Continue to next camera
+          stream.getTracks().forEach((t) => t.stop());
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              deviceId: { exact: cam.deviceId },
+              width: { ideal: IMAGE_SIZE },
+              height: { ideal: IMAGE_SIZE },
+            },
+          });
+
+          const track = stream.getVideoTracks()[0];
+          try {
+            await track.applyConstraints({ advanced: [{ torch: true }] });
+            torchWorking = true;
+            console.log(`[PAT] ✓ Torch works on: ${track.label}`);
+            break;
+          } catch (torchErr) {
+            console.log(`[PAT] ✗ No torch on: ${track.label}`);
+          }
+        } catch (camErr) {
+          console.log(`[PAT] ✗ Can't open: ${cam.label}`, camErr.message);
         }
-      } catch (camErr) {
-        console.log(`[PAT] ✗ Failed to open camera ${i}:`, camErr.message);
       }
     }
 
-    // Fallback: if no torch-capable camera found, just use environment-facing
     if (!torchWorking) {
-      console.warn("[PAT] No torch-capable camera found, falling back to environment facingMode");
-      if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; }
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment", width: { ideal: IMAGE_SIZE }, height: { ideal: IMAGE_SIZE } },
-      });
-      try {
-        const track = stream.getVideoTracks()[0];
-        await track.applyConstraints({ advanced: [{ torch: true }] });
-      } catch (e) { console.warn("[PAT] Torch unavailable on fallback camera"); }
+      console.warn("[PAT] No torch-capable camera found. Detection quality may be reduced.");
     }
 
     videoEl.srcObject = stream;
