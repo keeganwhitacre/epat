@@ -278,6 +278,7 @@ const PAT = (function () {
 
   let participantId = "", currentTrialIndex = -NUM_PRACTICES, currentKnobValue = 0, trialRunning = false;
   let trialIP = [], trialAP = [], trialKS = [], trialCD = [], trialIE = [];
+  let trialRecordedHR = [], trialInstantBpms = []; // matches Swift's recordedHR / instantBpms per trial
   let sessionData = { participantID: "", startDate: null, endDate: null, baselines: [], syncroTraining: [] };
   let currentInstantPeriod = 0, currentAveragePeriod = 0;
 
@@ -293,6 +294,8 @@ const PAT = (function () {
     trialIP.push(currentInstantPeriod); trialAP.push(currentAveragePeriod);
     trialKS.push(currentKnobValue); trialIE.push(prev - currentInstantPeriod);
     trialCD.push(currentDelay());
+    trialRecordedHR.push(beat.instantBPM);
+    trialInstantBpms.push(beat.averageBPM);
 
     const delay = currentDelay();
     const delayFromNow = delay < 0 ? currentInstantPeriod + delay : delay;
@@ -302,11 +305,23 @@ const PAT = (function () {
   }
 
   function collectTrialData() {
-    return { date: new Date().toISOString(), instantPeriods: [...trialIP], averagePeriods: [...trialAP], knobScales: [...trialKS], currentDelays: [...trialCD], instantErrs: [...trialIE], confidence: -1, bodyPos: -1 };
+    return {
+      date: new Date().toISOString(),
+      instantPeriods: [...trialIP],
+      averagePeriods: [...trialAP],
+      knobScales: [...trialKS],
+      currentDelays: [...trialCD],
+      instantErrs: [...trialIE],
+      recordedHR: [...trialRecordedHR],
+      instantBpms: [...trialInstantBpms],
+      confidence: -1,
+      bodyPos: -1,
+    };
   }
 
   function resetTrialBuffers() {
     trialIP = []; trialAP = []; trialKS = []; trialCD = []; trialIE = [];
+    trialRecordedHR = []; trialInstantBpms = [];
     currentInstantPeriod = 0; currentAveragePeriod = 0;
   }
 
@@ -333,6 +348,76 @@ const PAT = (function () {
     addBaseline(d) { sessionData.baselines.push(d); },
     finalizeSession() { sessionData.endDate = new Date().toISOString(); },
     exportJSON() { return JSON.stringify(sessionData, null, 2); },
+  };
+})();
+
+// ============================================================
+// MOTION DETECTOR — mirrors MotionDetector.swift
+// Uses DeviceMotion API on iOS Safari. Non-blocking if denied.
+// ============================================================
+const MotionDetector = (function () {
+  const MOVEMENT_THRESHOLD = 0.2; // matches Swift's movementThreshold
+  let accBuffer = [];
+  let lastAcc = { x: 0, y: 0, z: 0 };
+  let listening = false;
+  let permitted = false;
+  let onMovementWarning = null;
+
+  function handleMotion(e) {
+    const a = e.accelerationIncludingGravity || e.acceleration;
+    if (!a) return;
+    const mag = Math.sqrt(
+      Math.pow(a.x - lastAcc.x, 2) +
+      Math.pow(a.y - lastAcc.y, 2) +
+      Math.pow(a.z - lastAcc.z, 2)
+    );
+    accBuffer.push(mag);
+    lastAcc = { x: a.x, y: a.y, z: a.z };
+  }
+
+  return {
+    // Must be called from a user gesture on iOS 13+
+    async requestPermission() {
+      if (typeof DeviceMotionEvent !== "undefined" &&
+          typeof DeviceMotionEvent.requestPermission === "function") {
+        try {
+          const perm = await DeviceMotionEvent.requestPermission();
+          permitted = (perm === "granted");
+        } catch (e) { permitted = false; }
+      } else {
+        // Non-iOS or older — just available
+        permitted = true;
+      }
+      return permitted;
+    },
+
+    start(warningCb) {
+      if (!permitted) return;
+      onMovementWarning = warningCb || null;
+      accBuffer = [];
+      lastAcc = { x: 0, y: 0, z: 0 };
+      window.addEventListener("devicemotion", handleMotion);
+      listening = true;
+    },
+
+    stop() {
+      if (listening) {
+        window.removeEventListener("devicemotion", handleMotion);
+        listening = false;
+      }
+    },
+
+    // Check if moving too much (call periodically, e.g. on each beat)
+    checkMovement() {
+      if (accBuffer.length === 0) return false;
+      const mean = accBuffer.reduce((a, b) => a + b, 0) / accBuffer.length;
+      accBuffer = [];
+      const tooMuch = mean > MOVEMENT_THRESHOLD;
+      if (tooMuch && onMovementWarning) onMovementWarning();
+      return tooMuch;
+    },
+
+    isPermitted() { return permitted; },
   };
 })();
 
@@ -524,17 +609,24 @@ const UI = (function () {
   // Track whether detector is already running for trials
   let trialDetectorRunning = false;
 
-  function setTrialCallbacks() {
-    BeatDetector.setCallbacks({
-      onBeatCb: (beat) => {
-        PAT.handleTrialBeat(beat);
-        document.getElementById("trial-bpm").textContent = Math.round(beat.averageBPM);
-        triggerPulse("trial-heart");
-      },
-      onFingerChangeCb: (present) => {
-        document.getElementById("trial-finger-overlay").classList.toggle("visible", !present);
-      },
-    });
+  function trialBeatHandler(beat) {
+    PAT.handleTrialBeat(beat);
+    document.getElementById("trial-bpm").textContent = Math.round(beat.averageBPM);
+    triggerPulse("trial-heart");
+    // Check movement on each beat
+    const tooMuch = MotionDetector.checkMovement();
+    const moveWarn = document.getElementById("trial-movement-warning");
+    if (moveWarn) {
+      if (tooMuch) {
+        moveWarn.classList.add("visible");
+        clearTimeout(moveWarn._hideTimer);
+        moveWarn._hideTimer = setTimeout(() => moveWarn.classList.remove("visible"), 2000);
+      }
+    }
+  }
+
+  function trialFingerHandler(present) {
+    document.getElementById("trial-finger-overlay").classList.toggle("visible", !present);
   }
 
   async function startTrial() {
@@ -547,32 +639,30 @@ const UI = (function () {
     document.getElementById("trial-label").textContent = PAT.displayTrialLabel();
     document.getElementById("confirm-trial-btn").disabled = true;
 
+    // Start motion monitoring
+    MotionDetector.start();
+
     videoEl = document.getElementById("video-feed");
     canvasEl = document.getElementById("sampling-canvas");
 
     if (!trialDetectorRunning) {
-      // First trial: start the detector fresh
       await BeatDetector.start({
         video: videoEl, canvas: canvasEl,
-        onBeatCb: (beat) => {
-          PAT.handleTrialBeat(beat);
-          document.getElementById("trial-bpm").textContent = Math.round(beat.averageBPM);
-          triggerPulse("trial-heart");
-        },
-        onFingerChangeCb: (present) => {
-          document.getElementById("trial-finger-overlay").classList.toggle("visible", !present);
-        },
+        onBeatCb: trialBeatHandler,
+        onFingerChangeCb: trialFingerHandler,
       });
       trialDetectorRunning = true;
     } else {
-      // Subsequent trials: just swap callbacks back to trial mode.
-      // Detector, camera, filters, and adaptive threshold stay warm.
-      setTrialCallbacks();
+      BeatDetector.setCallbacks({
+        onBeatCb: trialBeatHandler,
+        onFingerChangeCb: trialFingerHandler,
+      });
     }
   }
 
   async function confirmTrial() {
     PAT.trialRunning = false;
+    MotionDetector.stop();
     // Don't stop the detector — just mute callbacks so tones stop
     // but the camera, filters, and adaptive threshold stay warm
     BeatDetector.setCallbacks({
@@ -655,12 +745,18 @@ const UI = (function () {
     };
 
     document.querySelectorAll("[data-next-step]").forEach((btn) => {
-      btn.onclick = () => {
+      btn.onclick = async () => {
         AudioEngine.resume();
         const next = btn.dataset.nextStep;
-        if (next === "baseline") showBaseline();
-        else if (next === "start-trials") startTrial();
-        else showOnboarding(next);
+        if (next === "baseline") {
+          // Request motion permission here — this is a user gesture context
+          await MotionDetector.requestPermission();
+          showBaseline();
+        } else if (next === "start-trials") {
+          startTrial();
+        } else {
+          showOnboarding(next);
+        }
       };
     });
 

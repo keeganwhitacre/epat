@@ -216,6 +216,20 @@
     .trial-heart.pulse { animation: bpmPulse 0.3s ease-out; }
     .trial-bpm-row span { color: var(--fg); font-size: 1.2rem; }
 
+    .movement-warning {
+      position: fixed; top: calc(env(safe-area-inset-top, 20px) + 8px);
+      left: 50%; transform: translateX(-50%) translateY(-60px);
+      background: rgba(255, 160, 40, 0.9); color: #000;
+      padding: 8px 20px; border-radius: 20px;
+      font-size: 0.8rem; font-weight: 600;
+      z-index: 50; pointer-events: none;
+      opacity: 0; transition: all 0.3s ease;
+      white-space: nowrap;
+    }
+    .movement-warning.visible {
+      opacity: 1; transform: translateX(-50%) translateY(0);
+    }
+
     /* ---- Confidence ---- */
     #screen-confidence { justify-content: center; align-items: center; gap: 40px; }
     .slider-container { width: 100%; max-width: 320px; }
@@ -387,6 +401,10 @@
     <div class="finger-overlay" id="trial-finger-overlay">
       <div class="icon">☝️</div>
       <p>Place your finger over the camera and flashlight</p>
+    </div>
+
+    <div class="movement-warning" id="trial-movement-warning">
+      Keep still — movement detected
     </div>
 
     <div class="trial-header">
