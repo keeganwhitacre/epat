@@ -36,7 +36,7 @@ Data points include:
 ## Current Status
 
 - **Development:** Core PAT logic and PPG pipeline are functional.
-- **Validation:** Internal jitter tests show sub-millisecond timing accuracy. Formal validation against Continuous Non-invasive Arterial Pressure (CNAP) is ongoing.
+- **Validation:** Awaiting more validation metrics. (CNAP comparison, ECG, pilot)
 - **Deployment:** Accessible via any modern mobile browser (optimized for iOS Safari).
 
 ## Acknowledgments
