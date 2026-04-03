@@ -629,29 +629,77 @@
 
       async function startCamera() {
         if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; }
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: "environment" }, width: { ideal: IMAGE_SIZE }, height: { ideal: IMAGE_SIZE } } });
+
+        // 1. Initial generic request to unlock device labels.
+        // If we don't do this first, iOS will return empty strings for camera labels.
+        try {
+          const tempStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+          tempStream.getTracks().forEach(t => t.stop());
+        } catch (e) { /* ignore and proceed */ }
+
+        // 2. Enumerate all available devices
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const cameras = devices.filter((d) => d.kind === "videoinput");
 
         let torchWorking = false;
-        try {
-          const track = stream.getVideoTracks()[0];
-          await track.applyConstraints({ advanced: [{ torch: true }] }); torchWorking = true;
-        } catch (e) {
-          const devices = await navigator.mediaDevices.enumerateDevices();
-          const cameras = devices.filter((d) => d.kind === "videoinput");
-          for (const cam of cameras) {
-            const label = (cam.label || "").toLowerCase();
-            if (label.includes("front") || label.includes("facetime")) continue;
-            try {
-              stream.getTracks().forEach((t) => t.stop());
-              stream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: cam.deviceId }, width: { ideal: IMAGE_SIZE }, height: { ideal: IMAGE_SIZE } } });
-              const track = stream.getVideoTracks()[0];
-              try { await track.applyConstraints({ advanced: [{ torch: true }] }); torchWorking = true; break; } catch (err) {}
-            } catch (err) {}
+
+        // 3. Iterate through cameras to find a specific physical rear lens
+        for (const cam of cameras) {
+          const label = (cam.label || "").toLowerCase();
+          
+          // Skip front cameras
+          if (label.includes("front") || label.includes("facetime")) continue;
+          
+          // CRITICAL FIX: Skip virtual multi-cameras on iOS ("Dual", "Triple").
+          // These virtual cameras cause the auto-macro lens switching.
+          // By targeting a single physical lens, we lock the focal and lighting system.
+          if (label.includes("dual") || label.includes("triple")) continue;
+
+          try {
+            if (stream) stream.getTracks().forEach((t) => t.stop());
+            
+            // Request the specific physical lens by its exact Device ID
+            stream = await navigator.mediaDevices.getUserMedia({ 
+              video: { 
+                deviceId: { exact: cam.deviceId }, 
+                width: { ideal: IMAGE_SIZE }, 
+                height: { ideal: IMAGE_SIZE } 
+              } 
+            });
+            
+            const track = stream.getVideoTracks()[0];
+            try { 
+              // Verify this specific lens supports the flashlight
+              await track.applyConstraints({ advanced: [{ torch: true }] }); 
+              torchWorking = true; 
+              break; // Success! We found a physical lens with a working torch. Stop looping.
+            } catch (err) {
+              // Torch failed on this specific lens, continue the loop to try the next one.
+            }
+          } catch (err) {
+            // Couldn't get stream for this camera, try the next one.
           }
         }
-        videoEl.srcObject = stream; await videoEl.play();
-      }
 
+        // 4. Fallback in case the precise hardware targeting fails
+        if (!torchWorking && !stream) {
+            try {
+              stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: { exact: "environment" }, width: { ideal: IMAGE_SIZE }, height: { ideal: IMAGE_SIZE } } 
+              });
+              const track = stream.getVideoTracks()[0];
+              try { await track.applyConstraints({ advanced: [{ torch: true }] }); } catch (e) {}
+            } catch(e) {
+               stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            }
+        }
+
+        // 5. Attach stream to video element
+        if (videoEl && stream) {
+          videoEl.srcObject = stream; 
+          await videoEl.play();
+        }
+      }
       async function stopCamera() {
         if (stream) {
           try { await stream.getVideoTracks()[0].applyConstraints({ advanced: [{ torch: false }] }); } catch (e) {}
