@@ -233,7 +233,18 @@ const BeatDetector = (function () {
       await startCamera();
       startTime = Date.now(); running = true; processFrame();
     },
+
+    // Swap callbacks without restarting camera or resetting filters/buffers.
+    // Keeps the detector warm so beat timing stays consistent across trials.
+    setCallbacks({ onBeatCb, onFingerChangeCb, onPPGSampleCb }) {
+      onBeat = onBeatCb || null;
+      onFingerChange = onFingerChangeCb || null;
+      onPPGSample = onPPGSampleCb || null;
+    },
+
+    // Full stop: kills camera and torch
     async stop() { running = false; if (animFrameId) cancelAnimationFrame(animFrameId); await stopCamera(); },
+
     isRunning() { return running; },
     isFingerPresent() { return fingerPresent; },
   };
@@ -510,6 +521,22 @@ const UI = (function () {
     showOnboarding("post-baseline");
   }
 
+  // Track whether detector is already running for trials
+  let trialDetectorRunning = false;
+
+  function setTrialCallbacks() {
+    BeatDetector.setCallbacks({
+      onBeatCb: (beat) => {
+        PAT.handleTrialBeat(beat);
+        document.getElementById("trial-bpm").textContent = Math.round(beat.averageBPM);
+        triggerPulse("trial-heart");
+      },
+      onFingerChangeCb: (present) => {
+        document.getElementById("trial-finger-overlay").classList.toggle("visible", !present);
+      },
+    });
+  }
+
   async function startTrial() {
     show("screen-trial");
     PAT.resetTrialBuffers();
@@ -522,22 +549,37 @@ const UI = (function () {
 
     videoEl = document.getElementById("video-feed");
     canvasEl = document.getElementById("sampling-canvas");
-    await BeatDetector.start({
-      video: videoEl, canvas: canvasEl,
-      onBeatCb: (beat) => {
-        PAT.handleTrialBeat(beat);
-        document.getElementById("trial-bpm").textContent = Math.round(beat.averageBPM);
-        triggerPulse("trial-heart");
-      },
-      onFingerChangeCb: (present) => {
-        document.getElementById("trial-finger-overlay").classList.toggle("visible", !present);
-      },
-    });
+
+    if (!trialDetectorRunning) {
+      // First trial: start the detector fresh
+      await BeatDetector.start({
+        video: videoEl, canvas: canvasEl,
+        onBeatCb: (beat) => {
+          PAT.handleTrialBeat(beat);
+          document.getElementById("trial-bpm").textContent = Math.round(beat.averageBPM);
+          triggerPulse("trial-heart");
+        },
+        onFingerChangeCb: (present) => {
+          document.getElementById("trial-finger-overlay").classList.toggle("visible", !present);
+        },
+      });
+      trialDetectorRunning = true;
+    } else {
+      // Subsequent trials: just swap callbacks back to trial mode.
+      // Detector, camera, filters, and adaptive threshold stay warm.
+      setTrialCallbacks();
+    }
   }
 
   async function confirmTrial() {
     PAT.trialRunning = false;
-    await BeatDetector.stop();
+    // Don't stop the detector — just mute callbacks so tones stop
+    // but the camera, filters, and adaptive threshold stay warm
+    BeatDetector.setCallbacks({
+      onBeatCb: null,        // no tones during confidence/bodymap
+      onFingerChangeCb: null, // no overlay flashing
+      onPPGSampleCb: null,
+    });
     hideAllOverlays();
     showConfidence(PAT.collectTrialData());
   }
@@ -578,11 +620,19 @@ const UI = (function () {
 
   function finalizeTrial(td) {
     PAT.addTrialResult(td); PAT.advanceTrial();
-    PAT.currentTrialIndex >= PAT.NUM_TRIALS ? showEnd() : startTrial();
+    if (PAT.currentTrialIndex >= PAT.NUM_TRIALS) {
+      showEnd();
+    } else {
+      startTrial();
+    }
   }
 
-  function showEnd() {
-    PAT.finalizeSession(); show("screen-end");
+  async function showEnd() {
+    PAT.finalizeSession();
+    PAT.trialRunning = false;
+    trialDetectorRunning = false;
+    await BeatDetector.stop();
+    show("screen-end");
     document.getElementById("data-preview").textContent = `Session complete. ${PAT.sessionData.syncroTraining.length} trials recorded.`;
   }
 
