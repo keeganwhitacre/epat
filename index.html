@@ -694,6 +694,45 @@
     })();
 
     // ============================================================
+    // MOTION DETECTOR 
+    // ============================================================
+    const MotionDetector = (function () {
+      const MOVEMENT_THRESHOLD = 0.2;
+      let accBuffer = [], lastAcc = { x: 0, y: 0, z: 0 };
+      let listening = false, permitted = false, onMovementWarning = null;
+
+      function handleMotion(e) {
+        const a = e.accelerationIncludingGravity || e.acceleration;
+        if (!a) return;
+        const mag = Math.sqrt(Math.pow(a.x - lastAcc.x, 2) + Math.pow(a.y - lastAcc.y, 2) + Math.pow(a.z - lastAcc.z, 2));
+        accBuffer.push(mag); lastAcc = { x: a.x, y: a.y, z: a.z };
+      }
+
+      return {
+        async requestPermission() {
+          if (typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function") {
+            try { const perm = await DeviceMotionEvent.requestPermission(); permitted = (perm === "granted"); } catch (e) { permitted = false; }
+          } else { permitted = true; }
+          return permitted;
+        },
+        start(warningCb) {
+          if (!permitted) return;
+          onMovementWarning = warningCb || null; accBuffer = []; lastAcc = { x: 0, y: 0, z: 0 };
+          window.addEventListener("devicemotion", handleMotion); listening = true;
+        },
+        stop() { if (listening) { window.removeEventListener("devicemotion", handleMotion); listening = false; } },
+        checkMovement() {
+          if (accBuffer.length === 0) return false;
+          const mean = accBuffer.reduce((a, b) => a + b, 0) / accBuffer.length;
+          accBuffer = [];
+          const tooMuch = mean > MOVEMENT_THRESHOLD;
+          if (tooMuch && onMovementWarning) onMovementWarning();
+          return tooMuch;
+        },
+      };
+    })();
+
+    // ============================================================
     // TASK LOGIC & UI
     // ============================================================
     const App = (function () {
