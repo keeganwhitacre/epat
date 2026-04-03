@@ -38,11 +38,13 @@
       position: absolute; inset: 0;
       display: flex; flex-direction: column;
       padding: calc(env(safe-area-inset-top, 24px) + 16px) 24px calc(env(safe-area-inset-bottom, 24px) + 16px);
+      background: var(--bg); /* Added background to prevent text bleed during transitions */
       opacity: 0; pointer-events: none;
       transition: opacity 0.3s ease;
       overflow-y: auto;
+      z-index: 1;
     }
-    .screen.active { opacity: 1; pointer-events: all; }
+    .screen.active { opacity: 1; pointer-events: all; z-index: 2; }
 
     h1 { font-size: 1.5rem; font-weight: 600; margin-bottom: 8px; color: var(--fg); }
     h2 { font-size: 1.1rem; font-weight: 400; color: var(--fg-muted); margin-bottom: 24px; }
@@ -705,7 +707,6 @@
       const urlId = urlParams.get('id');
       const urlTheme = urlParams.get('theme');
       if (urlTheme && THEMES[urlTheme]) applyTheme(urlTheme);
-      let active = null;
 
       const onboardingData = {
         participantID: "",
@@ -719,11 +720,17 @@
         onboardingDate: null,
       };
 
+      // BUG FIX: Intelligently find the active screen instead of relying on a potentially null variable.
       function show(id) {
-        if (active) active.classList.remove("active");
-        active = document.getElementById(id);
-        active.classList.add("active");
-        active.scrollTop = 0;
+        const currentActive = document.querySelector('.screen.active');
+        if (currentActive) {
+          currentActive.classList.remove("active");
+        }
+        const nextScreen = document.getElementById(id);
+        if (nextScreen) {
+          nextScreen.classList.add("active");
+          nextScreen.scrollTop = 0;
+        }
       }
 
       // --- SCREEN 1: Welcome ---
