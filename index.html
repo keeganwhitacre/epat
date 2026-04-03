@@ -6,21 +6,21 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="manifest.json">
-  <title>Phase Adjustment Task</title>
+  <title>Interoception Study</title>
   <style>
-    /* --- Clinical UI Design Tokens --- */
+    /* --- Clean, Clinical UI Design Tokens --- */
     :root {
-      --bg: #09090b;
-      --bg-card: rgba(39, 39, 42, 0.6);
-      --border: rgba(255, 255, 255, 0.1);
-      --fg: #f4f4f5;
-      --fg-muted: #a1a1aa;
-      --accent: #e11d48; /* Sharper, clinical crimson */
-      --accent-soft: rgba(225, 29, 72, 0.15);
-      --accent-glow: rgba(225, 29, 72, 0.4);
-      --radius: 12px;
-      --font: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-      --font-mono: "SF Mono", ui-monospace, "Cascadia Code", monospace;
+      --bg: #111827; /* Slate dark */
+      --bg-card: #1f2937;
+      --border: #374151;
+      --fg: #f9fafb;
+      --fg-muted: #9ca3af;
+      --accent-blue: #3b82f6; /* Medical blue for primary actions */
+      --accent-blue-hover: #2563eb;
+      --accent-red: #ef4444; /* Clean red for cardiac elements */
+      --radius: 8px; /* Sharper, more professional corners */
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -37,85 +37,77 @@
     .screen {
       position: absolute; inset: 0;
       display: flex; flex-direction: column;
-      padding: calc(env(safe-area-inset-top, 24px) + 12px) 24px calc(env(safe-area-inset-bottom, 24px) + 12px);
+      padding: calc(env(safe-area-inset-top, 24px) + 16px) 24px calc(env(safe-area-inset-bottom, 24px) + 16px);
       opacity: 0; pointer-events: none;
-      transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: opacity 0.3s ease;
       overflow-y: auto;
     }
     .screen.active { opacity: 1; pointer-events: all; }
 
-    h1 { font-size: 1.6rem; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 8px; }
-    h2 { font-size: 1.1rem; font-weight: 500; color: var(--fg-muted); margin-bottom: 24px; }
-    p { font-size: 1rem; line-height: 1.6; color: var(--fg); margin-bottom: 20px; }
-    .label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--fg-muted); font-weight: 600; }
+    h1 { font-size: 1.5rem; font-weight: 600; margin-bottom: 8px; color: var(--fg); }
+    h2 { font-size: 1.1rem; font-weight: 400; color: var(--fg-muted); margin-bottom: 24px; }
+    p { font-size: 1rem; line-height: 1.6; color: var(--fg-muted); margin-bottom: 20px; }
+    .label { font-size: 0.8rem; font-weight: 600; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; display: block; }
 
-    /* Buttons */
+    /* Flat, Professional Buttons */
     .btn {
       display: inline-flex; align-items: center; justify-content: center;
-      padding: 16px 32px; border-radius: var(--radius);
-      border: 1px solid transparent; cursor: pointer;
-      font-family: var(--font); font-size: 1.05rem; font-weight: 600;
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      padding: 14px 24px; border-radius: var(--radius);
+      border: none; cursor: pointer;
+      font-family: var(--font); font-size: 1rem; font-weight: 600;
+      transition: background 0.15s ease;
       -webkit-tap-highlight-color: transparent;
     }
-    .btn-primary { 
-      background: var(--accent); 
-      color: #fff; 
-    }
-    .btn-primary:active { transform: scale(0.97); }
-    .btn-primary:disabled { opacity: 0.4; pointer-events: none; filter: grayscale(100%); }
+    .btn-primary { background: var(--accent-blue); color: #fff; }
+    .btn-primary:active { background: var(--accent-blue-hover); }
+    .btn-primary:disabled { opacity: 0.4; pointer-events: none; }
     
     .btn-outline {
-      background: rgba(255,255,255,0.03); color: var(--fg);
+      background: transparent; color: var(--fg);
       border: 1px solid var(--border);
     }
-    .btn-outline:active { background: rgba(255,255,255,0.08); }
-    .btn-outline.selected { 
-      border-color: var(--accent); background: var(--accent-soft); 
-    }
+    .btn-outline:active { background: var(--bg-card); }
+    .btn-outline.selected { border-color: var(--accent-blue); background: rgba(59, 130, 246, 0.1); color: var(--accent-blue); }
     .btn-block { width: 100%; }
     .spacer { flex: 1; }
 
-    /* ---- Participant ID ---- */
-    #screen-participant { justify-content: center; align-items: center; gap: 32px; text-align: center; }
-    .logo-container { margin-bottom: 16px; }
-    
-    .input-group { width: 100%; max-width: 320px; text-align: left; }
-    .input-group input {
-      width: 100%; padding: 16px; margin-top: 8px;
+    /* ---- Forms & Inputs ---- */
+    .input-group { width: 100%; max-width: 320px; text-align: left; margin-bottom: 24px; }
+    .input-group input, .input-group textarea {
+      width: 100%; padding: 14px;
       background: var(--bg-card); border: 1px solid var(--border);
       border-radius: var(--radius); color: var(--fg);
-      font-family: var(--font-mono); font-size: 1.1rem; outline: none;
+      font-family: var(--font); font-size: 1rem; outline: none;
       transition: border-color 0.2s;
     }
-    .input-group input:focus { border-color: var(--accent); }
+    .input-group input:focus, .input-group textarea:focus { border-color: var(--accent-blue); }
+    .input-group textarea { resize: none; height: 100px; }
 
+    /* ---- Participant ID ---- */
+    #screen-participant { justify-content: center; align-items: center; gap: 16px; text-align: center; }
+    
     /* ---- Onboarding ---- */
     #screen-onboarding { justify-content: center; }
     .onboarding-step { display: none; flex-direction: column; gap: 24px; height: 100%; }
-    .onboarding-step.active { display: flex; animation: slideUp 0.4s ease forwards; }
-    @keyframes slideUp { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+    .onboarding-step.active { display: flex; }
     .onboarding-content { flex: 1; display: flex; flex-direction: column; justify-content: center; }
     
     .warning-box {
-      background: rgba(251, 191, 36, 0.1); border: 1px solid rgba(251, 191, 36, 0.3);
-      padding: 16px; border-radius: var(--radius); margin-top: 16px;
+      background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3);
+      padding: 16px; border-radius: var(--radius); margin-top: 8px;
     }
-    .warning-box p { color: #fcd34d; margin-bottom: 0; font-size: 0.9rem; }
+    .warning-box p { color: #fca5a5; margin-bottom: 0; font-size: 0.95rem; }
 
     /* ---- Finger overlay ---- */
     .finger-overlay {
       position: fixed; inset: 0; z-index: 100;
-      background: rgba(9, 9, 11, 0.95);
-      backdrop-filter: blur(8px);
+      background: rgba(17, 24, 39, 0.95);
       display: flex; flex-direction: column;
       align-items: center; justify-content: center; gap: 20px;
       opacity: 0; pointer-events: none;
-      transition: opacity 0.3s ease;
+      transition: opacity 0.2s ease;
     }
     .finger-overlay.visible { opacity: 1; pointer-events: all; }
-    .instruction-icon { animation: pulseIcon 2s infinite; }
-    @keyframes pulseIcon { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 
     /* ---- Baseline ---- */
     #screen-baseline { justify-content: space-between; align-items: center; gap: 16px; }
@@ -128,33 +120,25 @@
       border-radius: var(--radius); border: 1px solid var(--border);
     }
     .baseline-bpm-box { text-align: center; }
-    .baseline-bpm-number {
-      font-size: 3.5rem; font-weight: 600; font-family: var(--font-mono);
-      color: var(--accent); line-height: 1;
-    }
-    .pulse-anim { animation: bpmPulse 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-    @keyframes bpmPulse { 0% { transform: scale(1); } 30% { transform: scale(1.15); } 100% { transform: scale(1); } }
+    .baseline-bpm-number { font-size: 3rem; font-weight: 500; font-family: var(--font-mono); color: var(--accent-red); line-height: 1; }
 
     .progress-ring {
-      width: 110px; height: 110px; position: relative; flex-shrink: 0;
+      width: 100px; height: 100px; position: relative; flex-shrink: 0;
       display: flex; align-items: center; justify-content: center;
     }
     .progress-ring svg { position: absolute; inset: 0; transform: rotate(-90deg); z-index: 2; }
     .progress-ring circle { fill: none; stroke-width: 6; }
-    .progress-ring .track { stroke: rgba(255,255,255,0.05); }
+    .progress-ring .track { stroke: var(--border); }
     .progress-ring .fill {
-      stroke: var(--accent); stroke-dasharray: 283; stroke-dashoffset: 283;
+      stroke: var(--accent-blue); stroke-dasharray: 283; stroke-dashoffset: 283;
       stroke-linecap: round; transition: stroke-dashoffset 1s linear;
     }
-    .progress-text { font-size: 1.2rem; font-weight: 600; font-family: var(--font-mono); z-index: 3; }
+    .progress-text { font-size: 1.1rem; font-weight: 500; font-family: var(--font-mono); z-index: 3; color: var(--fg); }
 
-    .camera-preview {
-      position: absolute; width: 88px; height: 88px;
-      border-radius: 50%; z-index: 1; object-fit: cover; opacity: 0.4;
-    }
+    .camera-preview { position: absolute; width: 80px; height: 80px; border-radius: 50%; z-index: 1; object-fit: cover; opacity: 0.3; }
 
     .wave-container {
-      width: 100%; height: 90px;
+      width: 100%; height: 80px;
       background: var(--bg-card); border: 1px solid var(--border);
       border-radius: var(--radius); overflow: hidden; position: relative;
     }
@@ -166,108 +150,94 @@
     }
     .baseline-stat { text-align: center; }
     .baseline-stat-value { font-family: var(--font-mono); font-size: 1.2rem; color: var(--fg); margin-top: 4px; }
-    .baseline-status { font-size: 0.85rem; color: var(--fg-muted); text-align: center; min-height: 1.2em; font-weight: 500;}
+    .baseline-status { font-size: 0.85rem; color: var(--fg-muted); text-align: center; min-height: 1.2em; }
 
-    /* ---- Trial (Precision Rotary Dial) ---- */
+    /* ---- Trial (Clean Dial) ---- */
     #screen-trial { align-items: center; justify-content: space-between; }
-    .trial-header { text-align: center; margin-bottom: 20px;}
+    .trial-header { text-align: center; margin-bottom: 8px;}
     .trial-instruction { font-size: 1rem; color: var(--fg-muted); text-align: center; max-width: 320px; line-height: 1.5; margin-bottom: 20px; }
 
     .rotary-dial-wrapper {
-      position: relative; width: 280px; height: 280px; margin: 16px auto 24px;
+      position: relative; width: 260px; height: 260px; margin: 16px auto 24px;
       display: flex; align-items: center; justify-content: center;
       border-radius: 50%;
-      background: rgba(255,255,255,0.02);
-      border: 1px dashed rgba(255,255,255,0.1);
+      background: var(--bg-card);
+      border: 1px solid var(--border);
       user-select: none;
     }
     
     .rotary-dial-ticks { position: absolute; inset: 0; pointer-events: none; border-radius: 50%; z-index: 1; }
     .dial-tick {
       position: absolute; width: 2px; height: 6px;
-      background: rgba(255,255,255,0.2);
-      top: 8px; left: 50%; transform-origin: 50% 132px;
+      background: var(--border);
+      top: 8px; left: 50%; transform-origin: 50% 122px;
       margin-left: -1px;
     }
 
     .rotary-dial {
-      width: 170px; height: 170px; border-radius: 50%;
-      background: linear-gradient(145deg, #27272a, #18181b);
-      border: 1px solid rgba(255,255,255,0.08);
-      box-shadow: 0 10px 30px rgba(0,0,0,0.6), inset 0 2px 10px rgba(255,255,255,0.05);
+      width: 150px; height: 150px; border-radius: 50%;
+      background: var(--bg);
+      border: 2px solid var(--border);
       position: relative; touch-action: none; cursor: grab;
-      z-index: 2;
+      z-index: 2; display: flex; align-items: center; justify-content: center;
     }
-    .rotary-dial:active { cursor: grabbing; box-shadow: 0 4px 15px rgba(0,0,0,0.8), inset 0 2px 5px rgba(255,255,255,0.05); }
+    .rotary-dial:active { cursor: grabbing; background: #18202f; }
     
     .rotary-dial-indicator {
-      position: absolute; top: 12px; left: 50%;
-      width: 4px; height: 24px; background: var(--accent);
+      position: absolute; top: 8px; left: 50%;
+      width: 4px; height: 20px; background: var(--accent-blue);
       border-radius: 2px; transform: translateX(-50%);
-      box-shadow: 0 0 10px var(--accent-glow);
     }
 
     .dial-labels {
-      display: flex; justify-content: space-between; width: 100%; max-width: 300px;
+      display: flex; justify-content: space-between; width: 100%; max-width: 280px;
       margin: 0 auto 24px; font-size: 0.8rem; font-weight: 600; color: var(--fg-muted);
-      text-transform: uppercase; letter-spacing: 1px;
+      text-transform: uppercase; letter-spacing: 0.05em;
     }
 
     .trial-bpm-row { 
-      display: flex; align-items: center; gap: 10px; font-family: var(--font-mono); 
-      font-size: 1rem; color: var(--fg-muted); background: var(--bg-card); 
-      padding: 12px 24px; border-radius: var(--radius); margin-bottom: 20px; 
+      display: flex; align-items: center; gap: 8px; font-family: var(--font-mono); 
+      font-size: 0.9rem; color: var(--fg-muted); background: var(--bg-card); 
+      padding: 10px 20px; border-radius: var(--radius); margin-bottom: 20px; 
       border: 1px solid var(--border);
     }
-    .trial-bpm-row span.bpm-val { color: var(--fg); font-size: 1.2rem; }
+    .trial-bpm-row span.bpm-val { color: var(--fg); font-size: 1.1rem; }
 
     .movement-warning {
       position: fixed; top: calc(env(safe-area-inset-top, 24px) + 10px);
       left: 50%; transform: translateX(-50%) translateY(-60px);
-      background: #f59e0b; color: #000;
-      padding: 10px 24px; border-radius: 30px;
+      background: var(--accent-red); color: #fff;
+      padding: 8px 20px; border-radius: var(--radius);
       font-size: 0.9rem; font-weight: 600;
       z-index: 50; pointer-events: none;
-      opacity: 0; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      opacity: 0; transition: all 0.3s ease;
     }
     .movement-warning.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-    /* ---- Confidence & Standard Slider ---- */
-    #screen-confidence { justify-content: center; align-items: center; gap: 40px; }
-    
+    /* ---- EMA Sliders ---- */
+    .slider-group { width: 100%; max-width: 320px; margin-bottom: 32px; }
     .range-slider {
-      -webkit-appearance: none; width: 100%; max-width: 320px; height: 6px;
-      border-radius: 3px; outline: none;
-      background: rgba(255,255,255,0.1);
-      position: relative; margin-bottom: 12px;
+      -webkit-appearance: none; width: 100%; height: 6px;
+      border-radius: 3px; outline: none; background: var(--border);
+      position: relative; margin-bottom: 12px; margin-top: 8px;
     }
     .range-slider::-webkit-slider-thumb {
       -webkit-appearance: none; appearance: none;
-      width: 32px; height: 32px; border-radius: 50%;
-      background: var(--fg);
-      cursor: pointer; border: 4px solid var(--bg);
-      box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+      width: 28px; height: 28px; border-radius: 50%;
+      background: var(--accent-blue);
+      cursor: pointer; border: 2px solid var(--bg);
     }
-    
-    .confidence-value {
-      font-size: 4rem; font-weight: 600; font-family: var(--font-mono); 
-      color: var(--accent); text-align: center;
-    }
+    .slider-labels { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--fg-muted); }
 
     /* ---- Body map ---- */
     #screen-bodymap { justify-content: center; align-items: center; gap: 16px; }
     .body-map-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; max-width: 320px; }
     .body-part {
-      padding: 16px; border-radius: var(--radius);
+      padding: 14px; border-radius: var(--radius);
       background: var(--bg-card); border: 1px solid var(--border);
-      color: var(--fg); font-size: 1rem; cursor: pointer; text-align: center;
-      transition: all 0.2s;
+      color: var(--fg); font-size: 0.95rem; cursor: pointer; text-align: center;
     }
-    .body-part:active, .body-part.selected {
-      border-color: var(--accent); background: var(--accent-soft);
-    }
-    #bodymap-selected { font-size: 0.9rem; color: var(--accent); min-height: 1.2em; font-weight: 500; margin-top: 8px;}
-
+    
     /* ---- Hidden camera ---- */
     #video-feed, #sampling-canvas {
       position: fixed; top: -9999px; left: -9999px;
@@ -282,81 +252,112 @@
 
   <!-- 1. Participant ID -->
   <div class="screen active" id="screen-participant">
-    <div class="logo-container">
-      <!-- Clinical Pulse Icon -->
-      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <div style="margin-bottom: 16px;">
+      <!-- Clean Medical Cross/Heart Icon -->
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
       </svg>
     </div>
-    <div>
-      <h1>Phase Adjustment Task</h1>
-      <h2>Cardiac Interoception Protocol</h2>
+    <div style="margin-bottom: 24px;">
+      <h1>Interoception Study</h1>
+      <h2 id="task-subtitle">Phase Adjustment Task</h2>
     </div>
     <div class="input-group">
       <label class="label" for="participant-input">Participant ID</label>
-      <input type="text" id="participant-input" placeholder="e.g. SUBJ-001" autocomplete="off">
+      <input type="text" id="participant-input" placeholder="e.g. 42" autocomplete="off">
     </div>
-    <button class="btn btn-primary btn-block" id="start-btn" style="max-width:320px;">Begin Protocol</button>
+    <button class="btn btn-primary btn-block" id="start-btn" style="max-width:320px;">Begin</button>
   </div>
+
+  <!-- ========================================== -->
+  <!-- PATH A: DAILY EMA SURVEY (The 3x a day task) -->
+  <!-- ========================================== -->
+  <div class="screen" id="screen-ema">
+    <div class="spacer"></div>
+    <h1 style="text-align: center; margin-bottom: 32px;">Daily Check-In</h1>
+    
+    <div class="slider-group" style="margin: 0 auto 32px;">
+      <label class="label">1. How connected to your body do you feel right now?</label>
+      <input type="range" class="range-slider" id="ema-connected" min="0" max="100" value="50">
+      <div class="slider-labels"><span>Not at all</span><span>Extremely</span></div>
+    </div>
+
+    <div class="slider-group" style="margin: 0 auto 32px;">
+      <label class="label">2. How stressed or anxious do you feel?</label>
+      <input type="range" class="range-slider" id="ema-stress" min="0" max="100" value="50">
+      <div class="slider-labels"><span>Not at all</span><span>Extremely</span></div>
+    </div>
+
+    <div class="input-group" style="margin: 0 auto 32px;">
+      <label class="label">3. Describe your current physical sensations:</label>
+      <textarea id="ema-text" placeholder="e.g., My shoulders feel tight, breathing is shallow..."></textarea>
+    </div>
+
+    <div class="spacer"></div>
+    <button class="btn btn-primary btn-block" id="submit-ema-btn" style="max-width:320px; margin: 0 auto;">Submit Check-In</button>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- PATH B: PHASE ADJUSTMENT TASK (The 1x task) -->
+  <!-- ========================================== -->
 
   <!-- 2. Onboarding -->
   <div class="screen" id="screen-onboarding">
     <div class="onboarding-step" data-step="1">
       <div class="onboarding-content">
         <h1>Audio Setup</h1>
-        <p>This experimental task requires precision timing to match an auditory stimulus with your heartbeat.</p>
+        <p>This task requires precision timing to match a sound with your heartbeat.</p>
         <div class="warning-box">
-          <p><strong>⚠️ Crucial constraint: Do not use Bluetooth headphones.</strong></p>
-          <p style="margin-top:8px; color: var(--fg);">Wireless headphones introduce latency that invalidates phase measurement.</p>
+          <p><strong>⚠️ Do not use Bluetooth headphones.</strong></p>
+          <p style="color: var(--fg-muted);">Wireless headphones introduce an audio delay that invalidates the data.</p>
         </div>
-        <p style="margin-top: 24px;">Please use <strong>wired earphones</strong> or the <strong>built-in device speaker</strong> in a quiet environment.</p>
+        <p style="margin-top: 16px;">Please use <strong>wired earphones</strong> or the <strong>built-in device speaker</strong> in a quiet room.</p>
       </div>
-      <button class="btn btn-primary btn-block" data-next-step="2">Acknowledge Audio Setup</button>
+      <button class="btn btn-primary btn-block" data-next-step="2">I'm using wired/built-in audio</button>
     </div>
 
     <div class="onboarding-step" data-step="2">
       <div class="onboarding-content">
         <h1>Sensor Preparation</h1>
         <p>Place the tip of your index finger gently over both the <strong>rear camera lens</strong> and the <strong>flashlight</strong>.</p>
-        <p>Keep your finger perfectly still. The system uses photoplethysmography (PPG) to record your pulse; movement artifacts will disrupt data collection.</p>
+        <p>Keep your finger perfectly still. We are measuring your pulse optically, so movement will disrupt the reading.</p>
       </div>
-      <button class="btn btn-primary btn-block" data-next-step="baseline">Initiate Baseline Calibration</button>
+      <button class="btn btn-primary btn-block" data-next-step="baseline">Start Calibration</button>
     </div>
 
     <div class="onboarding-step" data-step="post-baseline">
       <div class="onboarding-content">
         <h1>Calibration Complete</h1>
-        <p>In the main task, you will hear a series of auditory tones. Each tone represents one cardiac cycle, but its timing may be artificially shifted.</p>
-        <p>Your objective is to rotate the measurement dial until the tone feels perfectly <strong>in phase</strong> with your actual heartbeat.</p>
+        <p>In the main task, you will hear a series of tones. Each tone represents one of your heartbeats, but the timing may be shifted.</p>
+        <p>Rotate the dial until the tone feels perfectly <strong>in sync</strong> with your actual heartbeat.</p>
       </div>
       <button class="btn btn-primary btn-block" data-next-step="3">Continue</button>
     </div>
 
     <div class="onboarding-step" data-step="3">
       <div class="onboarding-content">
-        <h1>Task Constraints</h1>
-        <p>Do <strong>not</strong> actively palpate your pulse with your free hand. We are measuring internal interoceptive perception.</p>
-        <p>Maintain steady finger contact with the optical sensor throughout the entire block.</p>
-        <p>You will complete 2 practice trials before the main protocol begins.</p>
+        <h1>Task Instructions</h1>
+        <p>Do <strong>not</strong> actively try to feel your pulse with your other hand. We want to measure your internal perception.</p>
+        <p>Keep your finger steadily on the camera throughout the task.</p>
+        <p>You will start with 2 practice trials.</p>
       </div>
-      <button class="btn btn-primary btn-block" data-next-step="start-trials">Begin Practice Block</button>
+      <button class="btn btn-primary btn-block" data-next-step="start-trials">Begin Practice</button>
     </div>
   </div>
 
   <!-- 3. Baseline -->
   <div class="screen" id="screen-baseline">
     <div class="finger-overlay" id="baseline-finger-overlay">
-      <!-- Finger Placement Icon -->
-      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--fg)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="instruction-icon">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--fg)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
         <rect x="5" y="2" width="14" height="20" rx="4" ry="4"/>
-        <circle cx="12" cy="8" r="2" fill="var(--accent)" stroke="none"/> 
+        <circle cx="12" cy="8" r="2" fill="var(--accent-red)" stroke="none"/> 
       </svg>
-      <p style="text-align: center; font-size: 1.1rem; color: #fff;">Sensor coverage required<br><span style="font-size: 0.9rem; color: var(--fg-muted);">Cover both lens and flash</span></p>
+      <p style="text-align: center; color: #fff;">Please place finger on camera<br><span style="font-size: 0.9rem; color: var(--fg-muted);">Cover both lens and flash</span></p>
     </div>
 
     <div class="baseline-top">
-      <h1>Baseline Calibration</h1>
-      <p class="label">Maintain sensor contact</p>
+      <h1>Recording Baseline</h1>
+      <p class="label">Keep finger still</p>
     </div>
 
     <div class="baseline-feedback">
@@ -383,41 +384,40 @@
 
     <div class="baseline-stats">
       <div class="baseline-stat">
-        <div class="label">Duration</div>
+        <div class="label">Time Left</div>
         <div class="baseline-stat-value"><span id="baseline-secs">120</span>s</div>
       </div>
       <div class="baseline-stat">
-        <div class="label">Cycles</div>
+        <div class="label">Beats</div>
         <div class="baseline-stat-value" id="baseline-beat-count">0</div>
       </div>
     </div>
 
-    <p class="baseline-status" id="baseline-status">Awaiting optical contact...</p>
+    <p class="baseline-status" id="baseline-status">Awaiting contact...</p>
   </div>
 
   <!-- 4. Trial -->
   <div class="screen" id="screen-trial">
     <div class="finger-overlay" id="trial-finger-overlay">
-      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--fg)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="instruction-icon">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--fg)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
         <rect x="5" y="2" width="14" height="20" rx="4" ry="4"/>
-        <circle cx="12" cy="8" r="2" fill="var(--accent)" stroke="none"/> 
+        <circle cx="12" cy="8" r="2" fill="var(--accent-red)" stroke="none"/> 
       </svg>
-      <p style="text-align: center; color: #fff;">Optical contact lost. Replace finger.</p>
+      <p style="text-align: center; color: #fff;">Please place finger back on camera.</p>
     </div>
 
     <div class="movement-warning" id="trial-movement-warning">
-      Artifact detected — keep still
+      Movement detected — keep still
     </div>
 
     <div class="trial-header">
-      <p class="label" id="trial-label" style="color: var(--accent);">TRIAL 1</p>
+      <p class="label" id="trial-label" style="color: var(--accent-blue);">Trial 1</p>
     </div>
 
     <p class="trial-instruction">
-      Rotate the dial until the audio stimulus is aligned with your cardiac perception.
+      Rotate the dial until the sound aligns with your heartbeat.
     </p>
 
-    <!-- Redesigned Precision Rotary Dial -->
     <div class="rotary-dial-wrapper">
       <div class="rotary-dial-ticks" id="rotary-dial-ticks"></div>
       <div class="rotary-dial" id="rotary-dial">
@@ -426,35 +426,34 @@
     </div>
     
     <div class="dial-labels">
-      <span>◀ Negative Shift</span>
-      <span>Positive Shift ▶</span>
+      <span>◀ Earlier</span>
+      <span>Later ▶</span>
     </div>
 
     <div class="trial-bpm-row">
-      <!-- Clinical Pulse Waveform Icon -->
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="trial-heart">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent-red)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="trial-heart">
         <path d="M22 12h-2l-2 5-4-10-2 5H2"/>
       </svg>
       <span>BPM: <span class="bpm-val" id="trial-bpm">--</span></span>
     </div>
 
     <button class="btn btn-primary btn-block" id="confirm-trial-btn" disabled style="max-width:320px;">
-      Confirm Alignment
+      Confirm Timing
     </button>
   </div>
 
   <!-- 5. Confidence -->
   <div class="screen" id="screen-confidence">
     <div class="spacer"></div>
-    <h1 style="text-align:center;">Alignment Confidence</h1>
+    <h1 style="text-align:center;">Confidence Rating</h1>
     <p style="text-align:center; color:var(--fg-muted);">
-      Rate your confidence that the auditory stimulus perfectly matched your internal perception.
+      How confident are you that the sound matched your heartbeat?
     </p>
     
-    <div style="width: 100%; display: flex; flex-direction: column; align-items: center; margin: 40px 0;">
-      <div class="confidence-value" id="confidence-value">5</div>
+    <div class="slider-group" style="margin: 32px auto;">
+      <div style="font-size: 3rem; font-weight: 500; font-family: var(--font-mono); color: var(--accent-blue); text-align: center; margin-bottom: 16px;" id="confidence-value">5</div>
       <input type="range" class="range-slider" id="confidence-slider" min="0" max="9" step="1" value="5">
-      <div style="display: flex; justify-content: space-between; width: 100%; max-width: 320px; font-size: 0.8rem; color: var(--fg-muted); text-transform: uppercase;">
+      <div class="slider-labels">
         <span>Guessing</span>
         <span>Certain</span>
       </div>
@@ -462,18 +461,18 @@
 
     <div class="spacer"></div>
     <button class="btn btn-primary btn-block" id="confirm-confidence-btn" disabled style="max-width:320px; margin:0 auto;">
-      Submit Rating
+      Submit
     </button>
   </div>
 
   <!-- 6. Body map -->
   <div class="screen" id="screen-bodymap">
     <div class="spacer"></div>
-    <h1 style="text-align:center;">Somatic Locus</h1>
+    <h1 style="text-align:center;">Sensation Location</h1>
     <p style="text-align:center; color:var(--fg-muted); margin-bottom: 24px;">
-      Select the primary location where the cardiac sensation was perceived.
+      Where did you primarily feel your heartbeat?
     </p>
-    <button class="btn btn-outline btn-block" id="nowhere-btn" style="max-width:320px; margin:0 auto 16px;">No localized sensation</button>
+    <button class="btn btn-outline btn-block" id="nowhere-btn" style="max-width:320px; margin:0 auto 16px;">Did not feel it</button>
     <div class="body-map-grid" style="margin:0 auto;">
       <div class="body-part" data-value="1" data-name="Chest">Chest</div>
       <div class="body-part" data-value="2" data-name="Fingers">Fingers</div>
@@ -483,26 +482,24 @@
       <div class="body-part" data-value="6" data-name="Legs">Legs</div>
       <div class="body-part" data-value="7" data-name="Head">Head</div>
     </div>
-    <p id="bodymap-selected" style="text-align:center;"></p>
+    <p id="bodymap-selected" style="text-align:center; margin-top: 16px; font-weight: 500; color: var(--accent-blue); min-height: 1.2em;"></p>
     <div class="spacer"></div>
-    <button class="btn btn-primary btn-block" id="confirm-bodymap-btn" disabled style="max-width:320px; margin:0 auto;">Submit Locus</button>
+    <button class="btn btn-primary btn-block" id="confirm-bodymap-btn" disabled style="max-width:320px; margin:0 auto;">Confirm Location</button>
   </div>
 
   <!-- 7. End -->
   <div class="screen" id="screen-end">
-    <!-- Clinical Check Icon -->
-    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin: 0 auto 20px;">
+    <div class="spacer"></div>
+    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin: 0 auto 24px;">
       <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
       <polyline points="22 4 12 14.01 9 11.01"/>
     </svg>
-    <h1 style="text-align:center;">Protocol Complete</h1>
-    <p id="data-preview" style="text-align: center; color: var(--fg-muted); font-family: var(--font-mono); font-size: 0.9rem; margin-bottom: 40px;"></p>
-    <button class="btn btn-primary btn-block" id="download-btn" style="max-width:320px; margin: 0 auto; background: #10b981;">
-      Export Protocol Data (.json)
+    <h1 style="text-align:center;">Task Complete</h1>
+    <p style="text-align:center;">Thank you for your participation.</p>
+    <div class="spacer"></div>
+    <button class="btn btn-primary btn-block" id="download-btn" style="max-width:320px; margin: 0 auto;">
+      Save Data
     </button>
-    <p style="font-size:0.85rem; color:var(--fg-muted); text-align:center; margin-top:24px;">
-      The device may now be locked.
-    </p>
   </div>
 
   <script>
@@ -518,15 +515,15 @@
         tick.style.transform = `rotate(${i * 5}deg)`;
         if (i % 2 === 0) tick.style.height = '10px';
         if (i % 18 === 0) {
-          tick.style.height = '16px'; // Major quadrants
-          tick.style.background = 'rgba(255,255,255,0.4)';
+          tick.style.height = '14px';
+          tick.style.background = 'var(--fg-muted)';
         }
         container.appendChild(tick);
       }
     })();
 
     // ============================================================
-    // WAKE LOCK CONTROLLER (Prevents screen from sleeping)
+    // WAKE LOCK CONTROLLER
     // ============================================================
     const WakeLockCtrl = (function() {
       let wakeLock = null;
@@ -535,46 +532,27 @@
           try {
             if ('wakeLock' in navigator) {
               wakeLock = await navigator.wakeLock.request('screen');
-              console.log('[PAT] Wake Lock active');
-              wakeLock.addEventListener('release', () => console.log('[PAT] Wake Lock released'));
             }
-          } catch (err) { console.warn(`[PAT] Wake Lock error: ${err.message}`); }
+          } catch (err) { console.warn(`Wake Lock error: ${err.message}`); }
         },
-        release() {
-          if (wakeLock !== null) { wakeLock.release(); wakeLock = null; }
-        }
+        release() { if (wakeLock !== null) { wakeLock.release(); wakeLock = null; } }
       };
     })();
 
     // ============================================================
-    // PPG BEAT DETECTOR — replaces BioBeats' HeartDetectorEngine
+    // PPG BEAT DETECTOR
     // ============================================================
     const BeatDetector = (function () {
-      const SAMPLE_RATE = 30;
-      const IMAGE_SIZE = 40;
-      const MIN_BPM = 40;
-      const MAX_BPM = 120;
-      const REFRACTORY_MS = 500;
-      const BUFFER_SECONDS = 8;
-      const BUFFER_SIZE = SAMPLE_RATE * BUFFER_SECONDS;
-      const BASELINE_SECONDS = 2;
-
-      const FINGER_BRIGHTNESS_MIN = 0.15;
-      const FINGER_BRIGHTNESS_MAX = 0.98;
-      const FINGER_RED_DOMINANCE = 0.38;
+      const SAMPLE_RATE = 30, IMAGE_SIZE = 40, MIN_BPM = 40, REFRACTORY_MS = 500, BUFFER_SECONDS = 8;
+      const BUFFER_SIZE = SAMPLE_RATE * BUFFER_SECONDS, BASELINE_SECONDS = 2;
+      const FINGER_BRIGHTNESS_MIN = 0.15, FINGER_BRIGHTNESS_MAX = 0.98, FINGER_RED_DOMINANCE = 0.38;
 
       let videoEl, canvasEl, ctx;
       let rawBuffer = [], timeBuffer = [], filteredBuffer = [];
-      let lastBeatTime = 0, startTime = 0;
-      let running = false, stream = null, animFrameId = null, fingerPresent = false;
-      let fingerDebounceCount = 0;
-      const FINGER_DEBOUNCE_FRAMES = 8;
-
-      let instantBPM = 0, averageBPM = 0;
-      let instantPeriod = 0, averagePeriod = 0;
-      let recentPeriods = [];
+      let lastBeatTime = 0, startTime = 0, running = false, stream = null, animFrameId = null, fingerPresent = false;
+      let fingerDebounceCount = 0; const FINGER_DEBOUNCE_FRAMES = 8;
+      let instantPeriod = 0, averagePeriod = 0, recentPeriods = [];
       const MAX_RECENT_PERIODS = 10;
-
       let onBeat = null, onFingerChange = null, onPPGSample = null;
 
       let hpState = { x1: 0, y1: 0 }, lpState = { y1: 0 };
@@ -610,18 +588,14 @@
       function detectPeak() {
         if (filteredBuffer.length < 5) return false;
         const now = Date.now();
-        if (now - lastBeatTime < REFRACTORY_MS) return false;
-        if (now - startTime < BASELINE_SECONDS * 1000) return false;
+        if (now - lastBeatTime < REFRACTORY_MS || now - startTime < BASELINE_SECONDS * 1000) return false;
 
         const len = filteredBuffer.length;
-        const prev2 = filteredBuffer[len - 3] || 0;
-        const prev1 = filteredBuffer[len - 2];
-        const curr = filteredBuffer[len - 1];
+        const prev2 = filteredBuffer[len - 3] || 0, prev1 = filteredBuffer[len - 2], curr = filteredBuffer[len - 1];
 
         if (prev1 > prev2 && prev1 > curr) {
           const slice = filteredBuffer.slice(-SAMPLE_RATE * 3);
-          const sMax = Math.max(...slice), sMin = Math.min(...slice);
-          const amplitude = sMax - sMin;
+          const sMax = Math.max(...slice), sMin = Math.min(...slice), amplitude = sMax - sMin;
           if (prev1 > sMin + amplitude * 0.6 && amplitude > 0.0005) return true;
         }
         return false;
@@ -629,27 +603,23 @@
 
       function processFrame() {
         if (!running) return;
-        const now = Date.now();
-        const rawValue = extractRedMean();
-        const filtered = bandpass(rawValue);
+        const now = Date.now(), rawValue = extractRedMean(), filtered = bandpass(rawValue);
 
         rawBuffer.push(rawValue); timeBuffer.push(now); filteredBuffer.push(filtered);
         if (rawBuffer.length > BUFFER_SIZE) { rawBuffer.shift(); timeBuffer.shift(); filteredBuffer.shift(); }
-
         if (onPPGSample) onPPGSample(filtered);
 
         if (fingerPresent && detectPeak()) {
-          const beatTime = now - (1000 / SAMPLE_RATE);
-          const interval = beatTime - lastBeatTime;
+          const beatTime = now - (1000 / SAMPLE_RATE), interval = beatTime - lastBeatTime;
           lastBeatTime = beatTime;
 
           if (interval > 0 && interval < (60000 / MIN_BPM)) {
             instantPeriod = interval / 1000;
-            instantBPM = 60 / instantPeriod;
+            const instantBPM = 60 / instantPeriod;
             recentPeriods.push(instantPeriod);
             if (recentPeriods.length > MAX_RECENT_PERIODS) recentPeriods.shift();
             averagePeriod = recentPeriods.reduce((a, b) => a + b, 0) / recentPeriods.length;
-            averageBPM = 60 / averagePeriod;
+            const averageBPM = 60 / averagePeriod;
             if (onBeat) onBeat({ instantBPM, averageBPM, instantPeriod, averagePeriod, time: beatTime });
           }
         }
@@ -663,8 +633,7 @@
         let torchWorking = false;
         try {
           const track = stream.getVideoTracks()[0];
-          await track.applyConstraints({ advanced: [{ torch: true }] });
-          torchWorking = true;
+          await track.applyConstraints({ advanced: [{ torch: true }] }); torchWorking = true;
         } catch (e) {
           const devices = await navigator.mediaDevices.enumerateDevices();
           const cameras = devices.filter((d) => d.kind === "videoinput");
@@ -675,8 +644,8 @@
               stream.getTracks().forEach((t) => t.stop());
               stream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: cam.deviceId }, width: { ideal: IMAGE_SIZE }, height: { ideal: IMAGE_SIZE } } });
               const track = stream.getVideoTracks()[0];
-              try { await track.applyConstraints({ advanced: [{ torch: true }] }); torchWorking = true; break; } catch (torchErr) {}
-            } catch (camErr) {}
+              try { await track.applyConstraints({ advanced: [{ torch: true }] }); torchWorking = true; break; } catch (err) {}
+            } catch (err) {}
           }
         }
         videoEl.srcObject = stream; await videoEl.play();
@@ -684,7 +653,7 @@
 
       async function stopCamera() {
         if (stream) {
-          try { const t = stream.getVideoTracks()[0]; await t.applyConstraints({ advanced: [{ torch: false }] }); } catch (e) {}
+          try { await stream.getVideoTracks()[0].applyConstraints({ advanced: [{ torch: false }] }); } catch (e) {}
           stream.getTracks().forEach((t) => t.stop()); stream = null;
         }
         if (videoEl) videoEl.srcObject = null;
@@ -696,8 +665,7 @@
           canvasEl.width = IMAGE_SIZE; canvasEl.height = IMAGE_SIZE;
           onBeat = onBeatCb; onFingerChange = onFingerChangeCb; onPPGSample = onPPGSampleCb || null;
           rawBuffer = []; timeBuffer = []; filteredBuffer = []; recentPeriods = [];
-          lastBeatTime = 0; instantBPM = 0; averageBPM = 0;
-          fingerPresent = false; fingerDebounceCount = 0; resetFilters();
+          lastBeatTime = 0; fingerPresent = false; fingerDebounceCount = 0; resetFilters();
           await startCamera();
           startTime = Date.now(); running = true; processFrame();
         },
@@ -712,408 +680,243 @@
     // AUDIO ENGINE
     // ============================================================
     const AudioEngine = (function () {
-      let audioCtx, lowBuf, highBuf;
+      let audioCtx, lowBuf;
       function createBeep(freq, dur) {
         const sr = 44100, len = sr * dur, buf = audioCtx.createBuffer(1, len, sr), d = buf.getChannelData(0);
         for (let i = 0; i < len; i++) { const t = i / sr; d[i] = Math.sin(2 * Math.PI * freq * t) * Math.min(1, t * 50) * Math.min(1, (dur - t) * 50) * 0.5; }
         return buf;
       }
-      function play(buf) { if (!audioCtx) return; const s = audioCtx.createBufferSource(); s.buffer = buf; s.connect(audioCtx.destination); s.start(); }
       return {
-        init() { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); lowBuf = createBeep(440, 0.08); highBuf = createBeep(880, 0.06); },
-        playLow() { play(lowBuf); }, playHigh() { play(highBuf); },
+        init() { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); lowBuf = createBeep(440, 0.08); },
+        playLow() { if (audioCtx) { const s = audioCtx.createBufferSource(); s.buffer = lowBuf; s.connect(audioCtx.destination); s.start(); } },
         resume() { if (audioCtx?.state === "suspended") audioCtx.resume(); },
       };
     })();
 
     // ============================================================
-    // PHASE ADJUSTMENT TASK
+    // TASK LOGIC & UI
     // ============================================================
-    const PAT = (function () {
-      const NUM_TRIALS = 20, NUM_PRACTICES = 2, BODY_MAP_EVERY = 4;
-      const KNOB_VALUE_RANGE = 1.0, SHORTEST_DELAY = 60 / 140, BASELINE_DURATION_S = 120;
-
-      let participantId = "", currentTrialIndex = -NUM_PRACTICES, currentKnobValue = 0, trialRunning = false;
-      let trialIP = [], trialAP = [], trialKS = [], trialCD = [], trialIE = [];
-      let trialRecordedHR = [], trialInstantBpms = []; 
-      let sessionData = { participantID: "", startDate: null, endDate: null, baselines: [], syncroTraining: [] };
-      let currentInstantPeriod = 0, currentAveragePeriod = 0;
-
-      function currentDelay() {
-        if (currentAveragePeriod === 0) return SHORTEST_DELAY;
-        return (currentAveragePeriod / 2) * currentKnobValue;
-      }
-
-      function handleTrialBeat(beat) {
-        const prev = currentInstantPeriod;
-        currentInstantPeriod = beat.instantPeriod; currentAveragePeriod = beat.averagePeriod;
-        trialIP.push(currentInstantPeriod); trialAP.push(currentAveragePeriod);
-        trialKS.push(currentKnobValue); trialIE.push(prev - currentInstantPeriod);
-        trialCD.push(currentDelay());
-        trialRecordedHR.push(beat.instantBPM); trialInstantBpms.push(beat.averageBPM);
-
-        const delay = currentDelay();
-        const delayFromNow = delay < 0 ? currentInstantPeriod + delay : delay;
-        if (delayFromNow > 0 && delayFromNow < 3) {
-          setTimeout(() => { if (trialRunning) AudioEngine.playLow(); }, delayFromNow * 1000);
-        }
-      }
-
-      function collectTrialData() {
-        return {
-          date: new Date().toISOString(), instantPeriods: [...trialIP], averagePeriods: [...trialAP],
-          knobScales: [...trialKS], currentDelays: [...trialCD], instantErrs: [...trialIE],
-          recordedHR: [...trialRecordedHR], instantBpms: [...trialInstantBpms], confidence: -1, bodyPos: -1,
-        };
-      }
-
-      function resetTrialBuffers() {
-        trialIP = []; trialAP = []; trialKS = []; trialCD = []; trialIE = [];
-        trialRecordedHR = []; trialInstantBpms = [];
-        currentInstantPeriod = 0; currentAveragePeriod = 0;
-      }
-
-      return {
-        NUM_TRIALS, NUM_PRACTICES, BODY_MAP_EVERY, KNOB_VALUE_RANGE, BASELINE_DURATION_S,
-        get currentTrialIndex() { return currentTrialIndex; }, set currentTrialIndex(v) { currentTrialIndex = v; },
-        get currentKnobValue() { return currentKnobValue; }, set currentKnobValue(v) { currentKnobValue = Math.max(-KNOB_VALUE_RANGE, Math.min(KNOB_VALUE_RANGE, v)); },
-        get trialRunning() { return trialRunning; }, set trialRunning(v) { trialRunning = v; },
-        get participantId() { return participantId; }, set participantId(v) { participantId = v; },
-        get sessionData() { return sessionData; },
-        currentDelay, handleTrialBeat, collectTrialData, resetTrialBuffers,
-        randomKnobStart() { return (Math.random() * 2 - 1) * KNOB_VALUE_RANGE; },
-        initSession() { sessionData = { participantID: participantId, startDate: new Date().toISOString(), endDate: null, baselines: [], syncroTraining: [] }; currentTrialIndex = -NUM_PRACTICES; },
-        isPractice() { return currentTrialIndex < 0; },
-        displayTrialLabel() { return currentTrialIndex < 0 ? `PRACTICE BLOCK — TRIAL ${NUM_PRACTICES + currentTrialIndex + 1}` : `PROTOCOL BLOCK — TRIAL ${currentTrialIndex + 1} / ${NUM_TRIALS}`; },
-        showBodyMapThisTrial() { return currentTrialIndex >= 0 && (currentTrialIndex + 1) % BODY_MAP_EVERY === 0; },
-        addTrialResult(d) { sessionData.syncroTraining.push(d); },
-        addBaseline(d) { sessionData.baselines.push(d); },
-        finalizeSession() { sessionData.endDate = new Date().toISOString(); },
-        exportJSON() { return JSON.stringify(sessionData, null, 2); },
-      };
-    })();
-
-    // ============================================================
-    // MOTION DETECTOR 
-    // ============================================================
-    const MotionDetector = (function () {
-      const MOVEMENT_THRESHOLD = 0.2;
-      let accBuffer = [], lastAcc = { x: 0, y: 0, z: 0 };
-      let listening = false, permitted = false, onMovementWarning = null;
-
-      function handleMotion(e) {
-        const a = e.accelerationIncludingGravity || e.acceleration;
-        if (!a) return;
-        const mag = Math.sqrt(Math.pow(a.x - lastAcc.x, 2) + Math.pow(a.y - lastAcc.y, 2) + Math.pow(a.z - lastAcc.z, 2));
-        accBuffer.push(mag); lastAcc = { x: a.x, y: a.y, z: a.z };
-      }
-
-      return {
-        async requestPermission() {
-          if (typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function") {
-            try { const perm = await DeviceMotionEvent.requestPermission(); permitted = (perm === "granted"); } catch (e) { permitted = false; }
-          } else { permitted = true; }
-          return permitted;
-        },
-        start(warningCb) {
-          if (!permitted) return;
-          onMovementWarning = warningCb || null; accBuffer = []; lastAcc = { x: 0, y: 0, z: 0 };
-          window.addEventListener("devicemotion", handleMotion); listening = true;
-        },
-        stop() { if (listening) { window.removeEventListener("devicemotion", handleMotion); listening = false; } },
-        checkMovement() {
-          if (accBuffer.length === 0) return false;
-          const mean = accBuffer.reduce((a, b) => a + b, 0) / accBuffer.length;
-          accBuffer = [];
-          const tooMuch = mean > MOVEMENT_THRESHOLD;
-          if (tooMuch && onMovementWarning) onMovementWarning();
-          return tooMuch;
-        },
-      };
-    })();
-
-    // ============================================================
-    // UI CONTROLLER
-    // ============================================================
-    const UI = (function () {
-      const screens = {};
-      let currentScreen = null;
-      let baselineBPMs = [], baselineTimer = null, baselineStartTime = 0;
-      let videoEl, canvasEl, waveCanvas, waveCtx, waveBuffer = [];
-      const WAVE_MAX = 180;
-      let trialDetectorRunning = false;
-
-      // Rotary Dial State
+    const App = (function () {
+      const NUM_TRIALS = 20, NUM_PRACTICES = 2, BODY_MAP_EVERY = 4, KNOB_VALUE_RANGE = 1.0, BASELINE_DURATION_S = 120;
+      let sessionData = { participantID: "", taskType: "", date: null, data: [] };
+      let currentTrialIndex = -NUM_PRACTICES, currentKnobValue = 0, trialRunning = false, trialDetectorRunning = false;
+      let trialIP = [], trialAP = [], trialKS = [], trialCD = [], trialIE = [], trialRecordedHR = [], trialInstantBpms = []; 
+      let currentInstantPeriod = 0, currentAveragePeriod = 0, baselineStartTime = 0, baselineTimer = null, baselineBPMs = [], waveBuffer = [];
+      const screens = {}, WAVE_MAX = 180;
       let dialEl, dialAngle = 0, dialDragging = false, dialCx = 0, dialCy = 0, lastAngle = 0;
 
-      function hideAllOverlays() { document.querySelectorAll(".finger-overlay").forEach((el) => el.classList.remove("visible")); }
       function show(id) {
-        hideAllOverlays();
-        if (currentScreen) currentScreen.classList.remove("active");
-        currentScreen = screens[id]; currentScreen.classList.add("active");
+        document.querySelectorAll(".finger-overlay").forEach((el) => el.classList.remove("visible"));
+        if (screens.active) screens.active.classList.remove("active");
+        screens.active = document.getElementById(id); screens.active.classList.add("active");
       }
 
-      // ---- Precision Rotary Dial Logic ----
       function initDial() {
         dialEl = document.getElementById("rotary-dial");
         if (!dialEl) return;
-        dialEl.addEventListener("pointerdown", dialStart, { passive: false });
-        window.addEventListener("pointermove", dialMove, { passive: false });
-        window.addEventListener("pointerup", () => { dialDragging = false; document.body.style.cursor = ''; });
+        dialEl.addEventListener("pointerdown", (e) => {
+          e.preventDefault(); dialDragging = true;
+          const rect = dialEl.getBoundingClientRect(); dialCx = rect.left + rect.width / 2; dialCy = rect.top + rect.height / 2;
+          lastAngle = Math.atan2(e.clientY - dialCy, e.clientX - dialCx);
+          dialEl.setPointerCapture(e.pointerId);
+        }, { passive: false });
+        window.addEventListener("pointermove", (e) => {
+          if (!dialDragging) return; e.preventDefault();
+          const a = Math.atan2(e.clientY - dialCy, e.clientX - dialCx);
+          let d = a - lastAngle; if (d > Math.PI) d -= 2 * Math.PI; if (d < -Math.PI) d += 2 * Math.PI;
+          dialAngle = Math.max(-Math.PI, Math.min(Math.PI, dialAngle + d)); lastAngle = a;
+          currentKnobValue = ((dialAngle + Math.PI) / (2 * Math.PI) * 2 - 1) * KNOB_VALUE_RANGE;
+          dialEl.style.transform = `rotate(${dialAngle}rad)`;
+          document.getElementById("confirm-trial-btn").disabled = false;
+        }, { passive: false });
+        window.addEventListener("pointerup", () => { dialDragging = false; });
       }
 
-      function setDialAngle(v) {
-        // v is -1.0 to 1.0. Map to -PI to PI
-        const n = (v + PAT.KNOB_VALUE_RANGE) / (2 * PAT.KNOB_VALUE_RANGE);
-        dialAngle = n * 2 * Math.PI - Math.PI;
-        updateDialVisual();
-      }
-
-      function dialStart(e) {
-        e.preventDefault(); dialDragging = true;
-        const rect = dialEl.getBoundingClientRect();
-        dialCx = rect.left + rect.width / 2;
-        dialCy = rect.top + rect.height / 2;
-        lastAngle = Math.atan2(e.clientY - dialCy, e.clientX - dialCx);
-        dialEl.setPointerCapture(e.pointerId);
-        document.body.style.cursor = 'grabbing';
-      }
-
-      function dialMove(e) {
-        if (!dialDragging) return;
-        e.preventDefault();
-        const a = Math.atan2(e.clientY - dialCy, e.clientX - dialCx);
-        let d = a - lastAngle;
-        if (d > Math.PI) d -= 2 * Math.PI;
-        if (d < -Math.PI) d += 2 * Math.PI;
-        dialAngle = Math.max(-Math.PI, Math.min(Math.PI, dialAngle + d));
-        lastAngle = a;
-        
-        PAT.currentKnobValue = ((dialAngle + Math.PI) / (2 * Math.PI) * 2 - 1) * PAT.KNOB_VALUE_RANGE;
-        updateDialVisual();
-        document.getElementById("confirm-trial-btn").disabled = false;
-      }
-
-      function updateDialVisual() {
-        if (dialEl) dialEl.style.transform = `rotate(${dialAngle}rad)`;
-      }
-
-      // ---- Waveform Logic ----
       function drawWaveform() {
-        if (!waveCanvas || !waveCtx) return;
-        const w = waveCanvas.clientWidth, h = waveCanvas.clientHeight;
-        waveCtx.clearRect(0, 0, waveCanvas.width, waveCanvas.height);
+        const c = document.getElementById("wave-canvas"), ctx = c.getContext("2d");
+        const w = c.clientWidth, h = c.clientHeight; ctx.clearRect(0, 0, c.width, c.height);
         if (waveBuffer.length < 2) return;
         let min = waveBuffer[0], max = waveBuffer[0];
         for (const v of waveBuffer) { if (v < min) min = v; if (v > max) max = v; }
-        const range = max - min || 0.001, pad = 8;
-        const dpr = window.devicePixelRatio || 1;
-
-        waveCtx.beginPath();
-        waveCtx.strokeStyle = "#e11d48";
-        waveCtx.lineWidth = 3 * dpr;
-        waveCtx.lineJoin = "round"; waveCtx.lineCap = "round";
-
-        const xStep = (w * dpr) / WAVE_MAX;
-        const xOff = (WAVE_MAX - waveBuffer.length) * xStep;
+        const range = max - min || 0.001, pad = 8, dpr = window.devicePixelRatio || 1;
+        ctx.beginPath(); ctx.strokeStyle = "#ef4444"; ctx.lineWidth = 2 * dpr; ctx.lineJoin = "round";
+        const xStep = (w * dpr) / WAVE_MAX, xOff = (WAVE_MAX - waveBuffer.length) * xStep;
         for (let i = 0; i < waveBuffer.length; i++) {
-          const x = xOff + i * xStep;
-          const y = pad * dpr + ((max - waveBuffer[i]) / range) * (h * dpr - pad * 2 * dpr);
-          i === 0 ? waveCtx.moveTo(x, y) : waveCtx.lineTo(x, y);
+          const x = xOff + i * xStep, y = pad * dpr + ((max - waveBuffer[i]) / range) * (h * dpr - pad * 2 * dpr);
+          i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
         }
-        waveCtx.stroke();
+        ctx.stroke();
       }
 
-      function triggerPulse(id) {
-        const el = document.getElementById(id);
-        if (!el) return;
-        el.classList.remove("pulse-anim");
-        void el.offsetWidth;
-        el.classList.add("pulse-anim");
-      }
-
-      // ---- Application Flow ----
-      function showParticipantId() { show("screen-participant"); document.getElementById("participant-input").focus(); }
-      function showOnboarding(step) {
-        show("screen-onboarding");
-        document.querySelectorAll(".onboarding-step").forEach((s) => s.classList.remove("active"));
-        const t = document.querySelector(`.onboarding-step[data-step="${step}"]`);
-        if (t) t.classList.add("active");
-      }
-
-      async function showBaseline() {
+      async function startBaseline() {
         show("screen-baseline");
         baselineBPMs = []; waveBuffer = []; baselineStartTime = Date.now();
         await WakeLockCtrl.request();
 
-        const progEl = document.getElementById("baseline-progress"), secsEl = document.getElementById("baseline-secs"),
-              bpmEl = document.getElementById("baseline-bpm"), beatEl = document.getElementById("baseline-beat-count"), statusEl = document.getElementById("baseline-status");
-
-        waveCanvas = document.getElementById("wave-canvas"); waveCtx = waveCanvas.getContext("2d");
-        const dpr = window.devicePixelRatio || 1;
-        waveCanvas.width = waveCanvas.clientWidth * dpr; waveCanvas.height = waveCanvas.clientHeight * dpr;
-
-        const previewCanvas = document.getElementById("camera-preview"), previewCtx = previewCanvas.getContext("2d");
-        const previewSize = 88 * dpr; previewCanvas.width = previewSize; previewCanvas.height = previewSize;
-
-        videoEl = document.getElementById("video-feed"); canvasEl = document.getElementById("sampling-canvas");
+        const progEl = document.getElementById("baseline-progress"), secsEl = document.getElementById("baseline-secs");
+        const bpmEl = document.getElementById("baseline-bpm"), statusEl = document.getElementById("baseline-status");
+        const c = document.getElementById("wave-canvas"), dpr = window.devicePixelRatio || 1;
+        c.width = c.clientWidth * dpr; c.height = c.clientHeight * dpr;
+        
         let beatCount = 0;
-
         await BeatDetector.start({
-          video: videoEl, canvas: canvasEl,
+          video: document.getElementById("video-feed"), canvas: document.getElementById("sampling-canvas"),
           onBeatCb: (beat) => {
             baselineBPMs.push(beat.instantBPM); bpmEl.textContent = Math.round(beat.averageBPM);
-            beatCount++; beatEl.textContent = beatCount; triggerPulse("baseline-heart");
-            if (beatCount < 5) statusEl.textContent = "Acquiring cardiac signal...";
-            else if (beatCount < 15) statusEl.textContent = "Signal locked — maintain posture";
-            else statusEl.textContent = "Recording baseline data";
+            beatCount++; document.getElementById("baseline-beat-count").textContent = beatCount;
+            if (beatCount > 10) statusEl.textContent = "Recording data...";
           },
-          onFingerChangeCb: (present) => {
-            document.getElementById("baseline-finger-overlay").classList.toggle("visible", !present);
-            statusEl.textContent = present ? "Optical contact established..." : "Awaiting optical contact...";
+          onFingerChangeCb: (p) => {
+            document.getElementById("baseline-finger-overlay").classList.toggle("visible", !p);
+            statusEl.textContent = p ? "Signal found..." : "Awaiting contact...";
           },
           onPPGSampleCb: (sample) => {
             waveBuffer.push(sample); if (waveBuffer.length > WAVE_MAX) waveBuffer.shift(); drawWaveform();
-            previewCtx.save(); previewCtx.beginPath(); previewCtx.arc(previewSize / 2, previewSize / 2, previewSize / 2, 0, Math.PI * 2); previewCtx.closePath(); previewCtx.clip();
-            previewCtx.drawImage(videoEl, 0, 0, previewSize, previewSize); previewCtx.restore();
           },
         });
 
         const circ = 2 * Math.PI * 45;
-        baselineTimer = setInterval(() => {
-          const elapsed = (Date.now() - baselineStartTime) / 1000;
-          const remaining = Math.max(0, PAT.BASELINE_DURATION_S - elapsed);
-          const pct = Math.min(1, elapsed / PAT.BASELINE_DURATION_S);
-          progEl.textContent = Math.round(pct * 100) + "%"; secsEl.textContent = Math.ceil(remaining);
-          const circle = document.getElementById("baseline-progress-circle");
-          if (circle) circle.style.strokeDashoffset = circ * (1 - pct);
-          if (remaining <= 0) { clearInterval(baselineTimer); finishBaseline(); }
+        baselineTimer = setInterval(async () => {
+          const elapsed = (Date.now() - baselineStartTime) / 1000, remaining = Math.max(0, BASELINE_DURATION_S - elapsed);
+          progEl.textContent = Math.round(Math.min(1, elapsed / BASELINE_DURATION_S) * 100) + "%";
+          secsEl.textContent = Math.ceil(remaining);
+          document.getElementById("baseline-progress-circle").style.strokeDashoffset = circ * (1 - Math.min(1, elapsed / BASELINE_DURATION_S));
+          if (remaining <= 0) {
+            clearInterval(baselineTimer); await BeatDetector.stop();
+            sessionData.data.push({ type: "baseline", recordedHR: baselineBPMs.map(Math.round) });
+            show("screen-onboarding"); document.querySelector(".onboarding-step.active").classList.remove("active");
+            document.querySelector('.onboarding-step[data-step="post-baseline"]').classList.add("active");
+          }
         }, 1000);
       }
 
-      async function finishBaseline() {
-        await BeatDetector.stop(); hideAllOverlays();
-        PAT.addBaseline({ date: new Date().toISOString(), recordedHR: baselineBPMs.map((b) => Math.round(b)), instantBpms: [...baselineBPMs] });
-        showOnboarding("post-baseline");
-      }
-
-      function trialBeatHandler(beat) {
-        PAT.handleTrialBeat(beat);
-        document.getElementById("trial-bpm").textContent = Math.round(beat.averageBPM);
-        triggerPulse("trial-heart");
-        const tooMuch = MotionDetector.checkMovement();
-        const moveWarn = document.getElementById("trial-movement-warning");
-        if (moveWarn && tooMuch) {
-          moveWarn.classList.add("visible"); clearTimeout(moveWarn._hideTimer);
-          moveWarn._hideTimer = setTimeout(() => moveWarn.classList.remove("visible"), 2000);
-        }
-      }
-
-      function trialFingerHandler(present) { document.getElementById("trial-finger-overlay").classList.toggle("visible", !present); }
-
       async function startTrial() {
-        show("screen-trial"); PAT.resetTrialBuffers();
-        PAT.currentKnobValue = PAT.randomKnobStart();
-        setDialAngle(PAT.currentKnobValue);
+        show("screen-trial");
+        trialIP = []; trialAP = []; trialKS = []; trialCD = []; trialIE = []; trialRecordedHR = []; trialInstantBpms = [];
+        currentInstantPeriod = 0; currentAveragePeriod = 0;
+        currentKnobValue = (Math.random() * 2 - 1) * KNOB_VALUE_RANGE;
+        dialAngle = ((currentKnobValue + KNOB_VALUE_RANGE) / (2 * KNOB_VALUE_RANGE)) * 2 * Math.PI - Math.PI;
+        if(dialEl) dialEl.style.transform = `rotate(${dialAngle}rad)`;
         
-        PAT.trialRunning = true;
-        document.getElementById("trial-label").textContent = PAT.displayTrialLabel();
+        trialRunning = true;
+        document.getElementById("trial-label").textContent = currentTrialIndex < 0 ? `Practice Trial ${NUM_PRACTICES + currentTrialIndex + 1}` : `Trial ${currentTrialIndex + 1} of ${NUM_TRIALS}`;
         document.getElementById("confirm-trial-btn").disabled = true;
-
         MotionDetector.start();
-        videoEl = document.getElementById("video-feed"); canvasEl = document.getElementById("sampling-canvas");
+
+        const beatCb = (beat) => {
+          const prev = currentInstantPeriod;
+          currentInstantPeriod = beat.instantPeriod; currentAveragePeriod = beat.averagePeriod;
+          trialIP.push(currentInstantPeriod); trialAP.push(currentAveragePeriod);
+          trialKS.push(currentKnobValue); trialIE.push(prev - currentInstantPeriod);
+          const delay = (currentAveragePeriod / 2) * currentKnobValue;
+          trialCD.push(delay); trialRecordedHR.push(beat.instantBPM); trialInstantBpms.push(beat.averageBPM);
+          
+          document.getElementById("trial-bpm").textContent = Math.round(beat.averageBPM);
+          const dNow = delay < 0 ? currentInstantPeriod + delay : delay;
+          if (dNow > 0 && dNow < 3) setTimeout(() => { if (trialRunning) AudioEngine.playLow(); }, dNow * 1000);
+          
+          if (MotionDetector.checkMovement()) {
+            const w = document.getElementById("trial-movement-warning");
+            w.classList.add("visible"); clearTimeout(w._t); w._t = setTimeout(() => w.classList.remove("visible"), 2000);
+          }
+        };
+
+        const fCb = (p) => document.getElementById("trial-finger-overlay").classList.toggle("visible", !p);
 
         if (!trialDetectorRunning) {
-          await BeatDetector.start({ video: videoEl, canvas: canvasEl, onBeatCb: trialBeatHandler, onFingerChangeCb: trialFingerHandler });
+          await BeatDetector.start({ video: document.getElementById("video-feed"), canvas: document.getElementById("sampling-canvas"), onBeatCb: beatCb, onFingerChangeCb: fCb });
           trialDetectorRunning = true;
-        } else { BeatDetector.setCallbacks({ onBeatCb: trialBeatHandler, onFingerChangeCb: trialFingerHandler }); }
+        } else { BeatDetector.setCallbacks({ onBeatCb: beatCb, onFingerChangeCb: fCb }); }
       }
 
-      async function confirmTrial() {
-        PAT.trialRunning = false; MotionDetector.stop();
-        BeatDetector.setCallbacks({ onBeatCb: null, onFingerChangeCb: null, onPPGSampleCb: null });
-        hideAllOverlays(); showConfidence(PAT.collectTrialData());
-      }
-
-      function showConfidence(td) {
+      function confirmTrial() {
+        trialRunning = false; MotionDetector.stop();
+        BeatDetector.setCallbacks({ onBeatCb: null, onFingerChangeCb: null });
         show("screen-confidence");
-        const sl = document.getElementById("confidence-slider"), vd = document.getElementById("confidence-value");
-        sl.value = Math.floor(Math.random() * 10); vd.textContent = sl.value;
-        sl.oninput = () => { vd.textContent = sl.value; document.getElementById("confirm-confidence-btn").disabled = false; };
-        document.getElementById("confirm-confidence-btn").disabled = true;
-        document.getElementById("confirm-confidence-btn").onclick = () => {
-          td.confidence = parseInt(sl.value);
-          PAT.showBodyMapThisTrial() ? showBodyMap(td) : finalizeTrial(td);
+        const sl = document.getElementById("confidence-slider"), vd = document.getElementById("confidence-value"), btn = document.getElementById("confirm-confidence-btn");
+        sl.value = 5; vd.textContent = 5; btn.disabled = true;
+        sl.oninput = () => { vd.textContent = sl.value; btn.disabled = false; };
+        btn.onclick = () => {
+          const td = { type: "trial", isPractice: currentTrialIndex < 0, instantPeriods: [...trialIP], averagePeriods: [...trialAP], knobScales: [...trialKS], currentDelays: [...trialCD], instantErrs: [...trialIE], recordedHR: [...trialRecordedHR], instantBpms: [...trialInstantBpms], confidence: parseInt(sl.value), bodyPos: -1 };
+          if (currentTrialIndex >= 0 && (currentTrialIndex + 1) % BODY_MAP_EVERY === 0) {
+            show("screen-bodymap");
+            const parts = document.querySelectorAll(".body-part"), nb = document.getElementById("nowhere-btn"), cb = document.getElementById("confirm-bodymap-btn"), lb = document.getElementById("bodymap-selected");
+            let sel = -1; cb.disabled = true; lb.textContent = "";
+            parts.forEach((p) => { p.classList.remove("selected"); p.onclick = () => { parts.forEach(pp => pp.classList.remove("selected")); nb.classList.remove("selected"); p.classList.add("selected"); sel = parseInt(p.dataset.value); lb.textContent = p.dataset.name; cb.disabled = false; }; });
+            nb.classList.remove("selected"); nb.onclick = () => { parts.forEach(pp => pp.classList.remove("selected")); nb.classList.add("selected"); sel = 8; lb.textContent = "None"; cb.disabled = false; };
+            cb.onclick = () => { td.bodyPos = sel; endTrial(td); };
+          } else { endTrial(td); }
         };
       }
 
-      function showBodyMap(td) {
-        show("screen-bodymap");
-        const parts = document.querySelectorAll(".body-part"), nb = document.getElementById("nowhere-btn"), cb = document.getElementById("confirm-bodymap-btn"), lb = document.getElementById("bodymap-selected");
-        let sel = -1; cb.disabled = true; lb.textContent = "";
-        parts.forEach((p) => { p.classList.remove("selected"); p.onclick = () => {
-          parts.forEach((pp) => pp.classList.remove("selected")); nb.classList.remove("selected");
-          p.classList.add("selected"); sel = parseInt(p.dataset.value);
-          lb.textContent = `Locus: ${p.dataset.name}`; cb.disabled = false;
-        }; });
-        nb.classList.remove("selected"); nb.onclick = () => {
-          parts.forEach((pp) => pp.classList.remove("selected")); nb.classList.add("selected");
-          sel = 8; lb.textContent = "Locus: None"; cb.disabled = false;
-        };
-        cb.onclick = () => { td.bodyPos = sel; finalizeTrial(td); };
+      async function endTrial(td) {
+        sessionData.data.push(td); currentTrialIndex++;
+        if (currentTrialIndex >= NUM_TRIALS) {
+          trialDetectorRunning = false; await BeatDetector.stop(); WakeLockCtrl.release(); show("screen-end");
+        } else { startTrial(); }
       }
 
-      function finalizeTrial(td) {
-        PAT.addTrialResult(td); PAT.currentTrialIndex++;
-        PAT.currentTrialIndex >= PAT.NUM_TRIALS ? showEnd() : startTrial();
-      }
-
-      async function showEnd() {
-        PAT.finalizeSession(); PAT.trialRunning = false; trialDetectorRunning = false;
-        await BeatDetector.stop(); WakeLockCtrl.release();
+      function submitEMA() {
+        const c = document.getElementById("ema-connected").value;
+        const s = document.getElementById("ema-stress").value;
+        const t = document.getElementById("ema-text").value;
+        sessionData.data.push({ type: "ema", connected: c, stress: s, text: t });
         show("screen-end");
-        document.getElementById("data-preview").textContent = `ID: ${PAT.participantId} — ${PAT.sessionData.syncroTraining.length} trials recorded.`;
       }
 
-      function downloadData() {
-        const b = new Blob([PAT.exportJSON()], { type: "application/json" });
-        const u = URL.createObjectURL(b);
-        const a = document.createElement("a"); a.href = u;
-        a.download = `PAT_${PAT.participantId}_${new Date().toISOString().slice(0, 10)}.json`;
-        a.click(); URL.revokeObjectURL(u);
-      }
+      return {
+        init() {
+          screens.active = document.getElementById("screen-participant");
+          initDial(); AudioEngine.init();
 
-      function init() {
-        document.querySelectorAll(".screen").forEach((s) => { screens[s.id] = s; });
-        initDial(); AudioEngine.init();
+          // URL Parsing logic
+          const urlParams = new URLSearchParams(window.location.search);
+          const urlId = urlParams.get('id');
+          const sessionType = urlParams.get('session'); // 'pat' or 'ema'
+          
+          if (urlId) document.getElementById('participant-input').value = urlId;
+          if (sessionType === 'ema') document.getElementById('task-subtitle').textContent = "Daily Check-In";
 
-        document.getElementById("start-btn").onclick = () => {
-          const pid = document.getElementById("participant-input").value.trim();
-          if (!pid) return;
-          PAT.participantId = pid; PAT.initSession(); AudioEngine.resume(); showOnboarding("1");
-        };
-
-        document.querySelectorAll("[data-next-step]").forEach((btn) => {
-          btn.onclick = async () => {
+          document.getElementById("start-btn").onclick = () => {
+            const pid = document.getElementById("participant-input").value.trim();
+            if (!pid) return;
+            sessionData.participantID = pid; sessionData.date = new Date().toISOString();
             AudioEngine.resume();
-            const next = btn.dataset.nextStep;
-            if (next === "baseline") {
-              await MotionDetector.requestPermission(); showBaseline();
-            } else if (next === "start-trials") { startTrial(); }
-            else { showOnboarding(next); }
+
+            if (sessionType === 'ema') {
+              sessionData.taskType = "EMA";
+              show("screen-ema");
+            } else {
+              sessionData.taskType = "PAT";
+              show("screen-onboarding");
+              document.querySelector('.onboarding-step[data-step="1"]').classList.add("active");
+            }
           };
-        });
 
-        document.getElementById("confirm-trial-btn").onclick = () => { AudioEngine.resume(); confirmTrial(); };
-        document.getElementById("download-btn").onclick = downloadData;
-        showParticipantId();
-      }
+          document.querySelectorAll("[data-next-step]").forEach((btn) => {
+            btn.onclick = async () => {
+              AudioEngine.resume(); const n = btn.dataset.nextStep;
+              if (n === "baseline") { await MotionDetector.requestPermission(); startBaseline(); }
+              else if (n === "start-trials") { startTrial(); }
+              else { document.querySelectorAll(".onboarding-step").forEach(s => s.classList.remove("active")); document.querySelector(`.onboarding-step[data-step="${n}"]`).classList.add("active"); }
+            };
+          });
 
-      return { init };
+          document.getElementById("confirm-trial-btn").onclick = () => { AudioEngine.resume(); confirmTrial(); };
+          document.getElementById("submit-ema-btn").onclick = submitEMA;
+          
+          document.getElementById("download-btn").onclick = () => {
+            const b = new Blob([JSON.stringify(sessionData, null, 2)], { type: "application/json" });
+            const u = URL.createObjectURL(b), a = document.createElement("a"); a.href = u;
+            a.download = `${sessionData.taskType}_${sessionData.participantID}_${new Date().toISOString().slice(0, 10)}.json`;
+            a.click(); URL.revokeObjectURL(u);
+          };
+        }
+      };
     })();
 
     document.addEventListener("DOMContentLoaded", () => {
-      UI.init();
+      App.init();
       if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(() => {});
     });
   </script>
