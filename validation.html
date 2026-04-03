@@ -87,6 +87,8 @@
       padding: 24px; font-size: 1.2rem; 
       box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
     }
+    .btn-pulse-beep { background: var(--border); color: var(--fg-muted); }
+    .btn-pulse-beep.active { background: var(--accent-red); color: #fff; box-shadow: 0 0 12px rgba(239, 68, 68, 0.3); }
 
     /* Dashboard Elements */
     .dashboard-panel {
@@ -196,6 +198,10 @@
       <button class="btn btn-tone" id="btn-tone">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><path d="M6 15H3c-1.1 0-2 .9-2 2v4c0 1.1.9 2 2 2h3c1.1 0 2-.9 2-2v-4c0-1.1-.9-2-2-2Z"/><path d="M21 13h-3c-1.1 0-2 .9-2 2v4c0 1.1.9 2 2 2h3c1.1 0 2-.9 2-2v-4c0-1.1-.9-2-2-2Z"/></svg>
         Play Test Tone (Audio Sync)
+      </button>
+      <button class="btn btn-pulse-beep" id="btn-pulse-beep">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        Pulse Beep: OFF
       </button>
       <button class="btn btn-stop" id="btn-stop">Stop & Export Data</button>
     </div>
@@ -488,13 +494,15 @@
       const WAVE_MAX = 180;
       let isRecording = false, timerInterval = null, motionCheckInterval = null;
       let sessionStartTime = 0;
+      let pulseBeepEnabled = false;
       
       let validationData = {
         sessionID: "",
         browserTimeStart: 0,
         beatTimestamps: [],
         syncMarkers: [],
-        toneTimestamps: []
+        toneTimestamps: [],
+        pulseBeepTimestamps: []
       };
 
       let waveBuffer = [];
@@ -503,6 +511,7 @@
         stop: document.getElementById('btn-stop'),
         sync: document.getElementById('btn-sync'),
         tone: document.getElementById('btn-tone'),
+        pulseBeep: document.getElementById('btn-pulse-beep'),
         activeControls: document.getElementById('active-controls'),
         beats: document.getElementById('stat-beats'),
         bpm: document.getElementById('stat-bpm'),
@@ -583,7 +592,12 @@
         validationData.beatTimestamps = [];
         validationData.syncMarkers = [];
         validationData.toneTimestamps = [];
+        validationData.pulseBeepTimestamps = [];
         waveBuffer = [];
+        pulseBeepEnabled = false;
+        ui.pulseBeep.classList.remove('active');
+        ui.pulseBeep.textContent = '';
+        ui.pulseBeep.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg> Pulse Beep: OFF';
         
         ui.start.style.display = 'none';
         ui.activeControls.style.display = 'flex';
@@ -628,6 +642,14 @@
             validationData.beatTimestamps.push(beat.time);
             ui.beats.textContent = validationData.beatTimestamps.length;
             ui.bpm.textContent = Math.round(beat.averageBPM);
+            
+            // Pulse beep: fire tone on each detected beat
+            if (pulseBeepEnabled) {
+              const beepTime = performance.now();
+              AudioEngine.resume();
+              AudioEngine.play();
+              validationData.pulseBeepTimestamps.push(beepTime);
+            }
             
             ui.fingerDot.style.transform = 'scale(1.5)';
             setTimeout(() => ui.fingerDot.style.transform = 'scale(1)', 100);
@@ -690,6 +712,15 @@
 
           ui.tone.addEventListener('touchstart', (e) => { e.preventDefault(); playTestTone(); });
           ui.tone.addEventListener('click', playTestTone);
+
+          function togglePulseBeep() {
+            pulseBeepEnabled = !pulseBeepEnabled;
+            ui.pulseBeep.classList.toggle('active', pulseBeepEnabled);
+            const label = pulseBeepEnabled ? 'ON' : 'OFF';
+            ui.pulseBeep.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg> Pulse Beep: ${label}`;
+          }
+          ui.pulseBeep.addEventListener('touchstart', (e) => { e.preventDefault(); togglePulseBeep(); });
+          ui.pulseBeep.addEventListener('click', togglePulseBeep);
         }
       };
     })();
