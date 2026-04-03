@@ -100,7 +100,7 @@
     .status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--border); }
     .status-dot.active { background: var(--accent-red); box-shadow: 0 0 8px var(--accent-red); }
 
-    .stats-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .stat-box { text-align: center; background: var(--bg); padding: 12px; border-radius: var(--radius); border: 1px solid var(--border); }
     .stat-value { font-family: var(--font-mono); font-size: 1.3rem; font-weight: 600; color: var(--fg); }
     .stat-label { font-size: 0.75rem; color: var(--fg-muted); text-transform: uppercase; margin-bottom: 4px;}
@@ -166,6 +166,10 @@
         <div class="stat-box">
           <div class="stat-label">Beats</div>
           <div class="stat-value" id="stat-beats">0</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Avg BPM</div>
+          <div class="stat-value" id="stat-bpm">--</div>
         </div>
         <div class="stat-box">
           <div class="stat-label">Markers</div>
@@ -452,6 +456,7 @@
         tone: document.getElementById('btn-tone'),
         activeControls: document.getElementById('active-controls'),
         beats: document.getElementById('stat-beats'),
+        bpm: document.getElementById('stat-bpm'),
         markers: document.getElementById('stat-markers'),
         tones: document.getElementById('stat-tones'),
         fingerDot: document.getElementById('finger-status'),
@@ -534,6 +539,7 @@
         ui.start.style.display = 'none';
         ui.activeControls.style.display = 'flex';
         ui.beats.textContent = '0';
+        ui.bpm.textContent = '--';
         ui.markers.textContent = '0';
         ui.tones.textContent = '0';
 
@@ -572,6 +578,7 @@
           onBeatCb: (beat) => {
             validationData.beatTimestamps.push(beat.time);
             ui.beats.textContent = validationData.beatTimestamps.length;
+            ui.bpm.textContent = Math.round(beat.averageBPM);
             
             ui.fingerDot.style.transform = 'scale(1.5)';
             setTimeout(() => ui.fingerDot.style.transform = 'scale(1)', 100);
@@ -585,6 +592,7 @@
               ui.fingerDot.classList.remove('active');
               ui.fingerText.textContent = "Awaiting Finger";
               ui.fingerText.style.color = "var(--fg-muted)";
+              ui.bpm.textContent = "--";
             }
           },
           onPPGSampleCb: (sample) => {
