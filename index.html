@@ -1022,6 +1022,21 @@
           const urlId = urlParams.get('id');
           const sessionType = urlParams.get('session'); // 'pat' or 'ema'
           
+          // Theme injection logic
+          const THEMES = {
+            blue:   { accent: '#3b82f6', accentHover: '#2563eb' },
+            teal:   { accent: '#14b8a6', accentHover: '#0d9488' },
+            violet: { accent: '#8b5cf6', accentHover: '#7c3aed' },
+            rose:   { accent: '#f43f5e', accentHover: '#e11d48' },
+            amber:  { accent: '#f59e0b', accentHover: '#d97706' },
+          };
+          const urlTheme = urlParams.get('theme');
+          if (urlTheme && THEMES[urlTheme]) {
+            const root = document.documentElement.style;
+            root.setProperty('--accent-blue', THEMES[urlTheme].accent);
+            root.setProperty('--accent-blue-hover', THEMES[urlTheme].accentHover);
+          }
+
           if (urlId) document.getElementById('participant-input').value = urlId;
           if (sessionType === 'ema') document.getElementById('task-subtitle').textContent = "Daily Check-In";
 
