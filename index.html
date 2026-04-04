@@ -557,7 +557,7 @@
         SAMPLE_RATE      = sampleRate || 30;
         EYE_CLS_SAMPLES  = Math.round(0.25  * SAMPLE_RATE);
         SLP_WINDOW       = Math.max(2, Math.round(0.13 * SAMPLE_RATE));
-        NDP_SAMPLES      = Math.round(2.5   * SAMPLE_RATE);
+        NDP_SAMPLES = Math.round(2.5   * SAMPLE_RATE);
         LPERIOD_SAMPLES  = Math.round(8.0   * SAMPLE_RATE);
         INIT_WINDOW      = Math.round(8.0   * SAMPLE_RATE);
         slopeBuffer = []; slopeEnergyBuffer = [];
@@ -740,13 +740,12 @@
           }
         }
 
-        // Use requestVideoFrameCallback if available (fires per decoded video frame),
-        // otherwise fall back to requestAnimationFrame (fires per display frame).
-        if ('requestVideoFrameCallback' in HTMLVideoElement.prototype) {
-          videoEl.requestVideoFrameCallback(() => processFrame());
-        } else {
-          animFrameId = requestAnimationFrame(processFrame);
-        }
+        // Use requestAnimationFrame for consistent UI updates.
+        // requestVideoFrameCallback was tried but causes visible waveform stuttering
+        // when the ISP drops framerate (common with finger-on-lens). rAF runs at
+        // display refresh rate regardless of camera framerate. Duplicate frames
+        // produce zero-slope samples in the WABP detector which are harmless.
+        animFrameId = requestAnimationFrame(processFrame);
       }
 
       async function startCamera() {

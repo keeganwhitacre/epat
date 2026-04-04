@@ -384,11 +384,7 @@
           }
         }
 
-        if ('requestVideoFrameCallback' in HTMLVideoElement.prototype) {
-          videoEl.requestVideoFrameCallback(() => processFrame());
-        } else {
-          animFrameId = requestAnimationFrame(processFrame);
-        }
+        animFrameId = requestAnimationFrame(processFrame);
       }
 
       async function startCamera() {

@@ -673,11 +673,7 @@
           }
         }
 
-        if ('requestVideoFrameCallback' in HTMLVideoElement.prototype) {
-          videoEl.requestVideoFrameCallback(() => loop());
-        } else {
-          animId = requestAnimationFrame(loop);
-        }
+        animId = requestAnimationFrame(loop);
       }
 
       return {
