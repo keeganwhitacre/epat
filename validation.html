@@ -121,6 +121,44 @@
     }
     .movement-warning.visible { opacity: 1; }
 
+    /* SQI / IBI Quality Panel */
+    .quality-panel {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 16px;
+      display: flex; flex-direction: column; gap: 12px;
+    }
+    .quality-panel .panel-title {
+      font-size: 0.8rem; font-weight: 600; color: var(--fg-muted);
+      text-transform: uppercase; letter-spacing: 0.05em;
+    }
+    .quality-meters { display: flex; gap: 12px; }
+    .quality-meter { flex: 1; }
+    .meter-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+    .meter-label { font-size: 0.75rem; font-weight: 600; color: var(--fg-muted); text-transform: uppercase; }
+    .meter-value { font-family: var(--font-mono); font-size: 1.1rem; font-weight: 600; transition: color 0.2s; }
+    .meter-bar { width: 100%; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+    .meter-bar-fill { height: 100%; border-radius: 3px; transition: width 0.3s ease, background 0.3s ease; }
+    .quality-summary { display: flex; gap: 12px; }
+    .quality-stat {
+      flex: 1; text-align: center; padding: 8px;
+      background: var(--bg); border-radius: var(--radius); border: 1px solid var(--border);
+    }
+    .quality-stat-value { font-family: var(--font-mono); font-size: 1rem; font-weight: 600; }
+    .quality-stat-label { font-size: 0.7rem; color: var(--fg-muted); text-transform: uppercase; margin-bottom: 2px; }
+
+    /* IBI Event Log */
+    .ibi-log {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 8px 12px;
+      max-height: 120px; overflow-y: auto;
+      font-family: var(--font-mono); font-size: 0.75rem;
+      line-height: 1.6; color: var(--fg-muted);
+    }
+    .ibi-log:empty::before { content: "IBI events will appear here..."; color: var(--border); }
+    .ibi-log .flag { color: var(--accent-yellow); }
+    .ibi-log .clean { color: var(--accent-green); }
+    .ibi-log .bad { color: var(--accent-red); }
+
     /* Hidden Elements */
     #video-feed, #sampling-canvas { position: fixed; top: -9999px; left: -9999px; width: 40px; height: 40px; opacity: 0; pointer-events: none; }
   </style>
@@ -182,6 +220,46 @@
           <div class="stat-value" id="stat-tones">0</div>
         </div>
       </div>
+    </div>
+
+    <!-- Signal Quality & IBI Plausibility Panel -->
+    <div class="quality-panel" id="quality-panel" style="display: none;">
+      <div class="panel-title">Signal Quality & IBI Plausibility</div>
+      <div class="quality-meters">
+        <div class="quality-meter">
+          <div class="meter-header">
+            <span class="meter-label">SQI (Perfusion)</span>
+            <span class="meter-value" id="sqi-value" style="color: var(--border);">--</span>
+          </div>
+          <div class="meter-bar"><div class="meter-bar-fill" id="sqi-bar" style="width: 0%; background: var(--border);"></div></div>
+        </div>
+        <div class="quality-meter">
+          <div class="meter-header">
+            <span class="meter-label">IBI Stability</span>
+            <span class="meter-value" id="ibi-stability-value" style="color: var(--border);">--</span>
+          </div>
+          <div class="meter-bar"><div class="meter-bar-fill" id="ibi-bar" style="width: 0%; background: var(--border);"></div></div>
+        </div>
+      </div>
+      <div class="quality-summary">
+        <div class="quality-stat">
+          <div class="quality-stat-label">Clean Beats</div>
+          <div class="quality-stat-value" id="stat-clean" style="color: var(--accent-green);">0</div>
+        </div>
+        <div class="quality-stat">
+          <div class="quality-stat-label">Flagged</div>
+          <div class="quality-stat-value" id="stat-flagged" style="color: var(--accent-yellow);">0</div>
+        </div>
+        <div class="quality-stat">
+          <div class="quality-stat-label">Flag Rate</div>
+          <div class="quality-stat-value" id="stat-flag-rate">0%</div>
+        </div>
+        <div class="quality-stat">
+          <div class="quality-stat-label">SQI Bad</div>
+          <div class="quality-stat-value" id="stat-sqi-bad" style="color: var(--accent-red);">0s</div>
+        </div>
+      </div>
+      <div class="ibi-log" id="ibi-log"></div>
     </div>
 
     <div class="movement-warning" id="movement-warning">
@@ -324,7 +402,7 @@
       let fingerDebounceCount = 0; const FINGER_DEBOUNCE_FRAMES = 8;
       let instantPeriod = 0, averagePeriod = 0, recentPeriods = [];
       const MAX_RECENT_PERIODS = 10;
-      let onBeat = null, onFingerChange = null, onPPGSample = null;
+      let onBeat = null, onFingerChange = null, onPPGSample = null, onSqiUpdate = null;
       let actualFPS = 30;
 
       let hpState = { x1: 0, y1: 0 }, lpState = { y1: 0 };
@@ -355,6 +433,33 @@
         return rM;
       }
 
+      // --- SQI (Signal Quality Index) via Perfusion Index ---
+      // Computed every ~1s from the raw (pre-bandpass) red channel.
+      // Perfusion Index = AC amplitude / DC level = (max - min) / mean over a sliding window.
+      // In clinical pulse-ox, PI < 0.1–0.2% is unreliable. Camera PPG has higher
+      // absolute values due to the optical path, so thresholds are calibrated higher.
+      let lastSqiTime = 0, currentSqi = 0;
+      const SQI_INTERVAL_MS = 1000; // recompute every second
+      const SQI_WINDOW_S = 2; // use 2 seconds of raw data
+
+      function computeSqi() {
+        // Need at least SQI_WINDOW_S worth of samples
+        const windowSamples = Math.round(actualFPS * SQI_WINDOW_S);
+        if (rawBuffer.length < windowSamples) return 0;
+        const slice = rawBuffer.slice(-windowSamples);
+        let min = slice[0], max = slice[0], sum = 0;
+        for (let i = 0; i < slice.length; i++) {
+          if (slice[i] < min) min = slice[i];
+          if (slice[i] > max) max = slice[i];
+          sum += slice[i];
+        }
+        const mean = sum / slice.length;
+        if (mean < 0.001) return 0; // no signal
+        // AC/DC ratio. Raw values are 0-1 (normalised red channel).
+        // For camera PPG with torch, typical good PI is 0.005–0.03.
+        return (max - min) / mean;
+      }
+
       function processFrame() {
         if (!running) return;
         const now = performance.now();
@@ -364,6 +469,13 @@
         rawBuffer.push(rawValue); timeBuffer.push(now); filteredBuffer.push(filtered);
         if (rawBuffer.length > BUFFER_SIZE) { rawBuffer.shift(); timeBuffer.shift(); filteredBuffer.shift(); }
         if (onPPGSample) onPPGSample(filtered);
+
+        // Recompute SQI every SQI_INTERVAL_MS
+        if (fingerPresent && (now - lastSqiTime > SQI_INTERVAL_MS)) {
+          currentSqi = computeSqi();
+          lastSqiTime = now;
+          if (onSqiUpdate) onSqiUpdate(currentSqi);
+        }
 
         if (fingerPresent && (now - startTime > 2000)) {
           const result = WabpDetector.processSample(filtered);
@@ -393,15 +505,22 @@
         const devices = await navigator.mediaDevices.enumerateDevices();
         const cameras = devices.filter((d) => d.kind === "videoinput");
         let torchWorking = false;
+        // Rank cameras: want standard wide back camera, skip ultra-wide/telephoto/virtual composites
+        const ranked = [];
         for (const cam of cameras) {
           const label = (cam.label || "").toLowerCase();
           if (label.includes("front") || label.includes("facetime")) continue;
           if (label.includes("dual") || label.includes("triple")) continue;
+          if (label.includes("ultra")) continue;
+          if (label.includes("tele")) continue;
+          if (label.includes("back") || label === "") { ranked.unshift(cam); } else { ranked.push(cam); }
+        }
+        for (const cam of ranked) {
           try {
             if (stream) stream.getTracks().forEach((t) => t.stop());
             stream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: cam.deviceId }, width: { ideal: IMAGE_SIZE }, height: { ideal: IMAGE_SIZE }, frameRate: { ideal: 120, min: 30 } } });
             const track = stream.getVideoTracks()[0];
-            try { await track.applyConstraints({ advanced: [{ torch: true }] }); torchWorking = true; break; } catch (err) {}
+            try { await track.applyConstraints({ advanced: [{ torch: true }] }); torchWorking = true; console.log(`[BeatDetector] Selected: "${cam.label}"`); break; } catch (err) {}
           } catch (err) {}
         }
         if (!torchWorking && !stream) {
@@ -421,12 +540,14 @@
       }
 
       return {
-        async start({ video, canvas, onBeatCb, onFingerChangeCb, onPPGSampleCb }) {
+        async start({ video, canvas, onBeatCb, onFingerChangeCb, onPPGSampleCb, onSqiUpdateCb }) {
           videoEl = video; canvasEl = canvas; ctx = canvas.getContext("2d");
           canvasEl.width = IMAGE_SIZE; canvasEl.height = IMAGE_SIZE;
           onBeat = onBeatCb; onFingerChange = onFingerChangeCb; onPPGSample = onPPGSampleCb || null;
+          onSqiUpdate = onSqiUpdateCb || null;
           rawBuffer = []; timeBuffer = []; filteredBuffer = []; recentPeriods = [];
           lastBeatTime = 0; fingerPresent = false; fingerDebounceCount = 0;
+          lastSqiTime = 0; currentSqi = 0;
           await startCamera();
           computeFilterCoeffs(actualFPS); resetFilters();
           WabpDetector.reset(actualFPS);
@@ -434,6 +555,7 @@
         },
         async stop() { running = false; if (animFrameId) cancelAnimationFrame(animFrameId); await stopCamera(); },
         getActualFPS() { return actualFPS; },
+        getSqi() { return currentSqi; },
       };
     })();
 
@@ -500,6 +622,27 @@
       let isRecording = false, timerInterval = null, motionCheckInterval = null;
       let sessionStartTime = 0;
       let pulseBeepEnabled = false;
+
+      // --- IBI Plausibility State ---
+      const IBI_CHANGE_THRESHOLD = 0.30; // 30% successive difference = flag
+      let lastIbi = 0; // ms
+      let cleanBeatCount = 0, flaggedBeatCount = 0;
+      let ibiFlags = []; // per-beat: { time, ibiMs, flag: null | { type, magnitude, prevIbi } }
+      
+      // --- SQI State ---
+      // SQI thresholds for camera PPG perfusion index.
+      // These are AC/DC ratios on the raw red channel (0-1 normalised).
+      // With torch + finger, a clean pulsatile signal typically produces
+      // PI of 0.005–0.03. Below ~0.003 the AC component is too flat
+      // to trust IBI extraction — the waveform is dominated by sensor noise
+      // and ISP quantisation rather than arterial pulsation.
+      const SQI_GOOD = 0.008;   // confident: clear pulse morphology
+      const SQI_WARN = 0.003;   // marginal: beats may be detectable but noisy
+      // Below SQI_WARN: unreliable — finger pressure, ambient light leak, or motion
+      let currentSqiValue = 0;
+      let sqiBadSeconds = 0; // cumulative seconds SQI was below SQI_WARN
+      let lastSqiCheckTime = 0;
+      let sqiTimeSeries = []; // for export: { time, sqi }
       
       let validationData = {
         sessionID: "",
@@ -507,7 +650,10 @@
         beatTimestamps: [],
         syncMarkers: [],
         toneTimestamps: [],
-        pulseBeepTimestamps: []
+        pulseBeepTimestamps: [],
+        ibiFlags: [],
+        sqiTimeSeries: [],
+        qualitySummary: {}
       };
 
       let waveBuffer = [];
@@ -528,7 +674,18 @@
         motionWarning: document.getElementById('movement-warning'),
         waveCanvas: document.getElementById('wave-canvas'),
         previewCanvas: document.getElementById('camera-preview'),
-        flash: document.getElementById('sync-flash')
+        flash: document.getElementById('sync-flash'),
+        // Quality panel
+        qualityPanel: document.getElementById('quality-panel'),
+        sqiValue: document.getElementById('sqi-value'),
+        sqiBar: document.getElementById('sqi-bar'),
+        ibiStabilityValue: document.getElementById('ibi-stability-value'),
+        ibiBar: document.getElementById('ibi-bar'),
+        statClean: document.getElementById('stat-clean'),
+        statFlagged: document.getElementById('stat-flagged'),
+        statFlagRate: document.getElementById('stat-flag-rate'),
+        statSqiBad: document.getElementById('stat-sqi-bad'),
+        ibiLog: document.getElementById('ibi-log'),
       };
 
       function drawWaveform() {
@@ -545,6 +702,105 @@
           i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
         }
         ctx.stroke();
+      }
+
+      function updateSqiDisplay(sqi) {
+        currentSqiValue = sqi;
+        const now = performance.now();
+        
+        // Track cumulative bad-SQI time
+        if (lastSqiCheckTime > 0 && sqi < SQI_WARN) {
+          sqiBadSeconds += (now - lastSqiCheckTime) / 1000;
+        }
+        lastSqiCheckTime = now;
+        
+        // Log to time series
+        sqiTimeSeries.push({ time: now, sqi: Math.round(sqi * 100000) / 100000 });
+        
+        // Display value as percentage (more intuitive than raw ratio)
+        const pct = (sqi * 100).toFixed(2);
+        ui.sqiValue.textContent = pct + '%';
+        
+        // Color + bar: green > SQI_GOOD, yellow SQI_WARN–SQI_GOOD, red < SQI_WARN
+        let color, barPct;
+        if (sqi >= SQI_GOOD) {
+          color = 'var(--accent-green)';
+          barPct = Math.min(100, (sqi / 0.04) * 100); // scale: 0.04 = full bar
+        } else if (sqi >= SQI_WARN) {
+          color = 'var(--accent-yellow)';
+          barPct = Math.min(100, (sqi / 0.04) * 100);
+        } else {
+          color = 'var(--accent-red)';
+          barPct = Math.max(5, (sqi / 0.04) * 100);
+        }
+        ui.sqiValue.style.color = color;
+        ui.sqiBar.style.width = barPct + '%';
+        ui.sqiBar.style.background = color;
+        ui.statSqiBad.textContent = Math.round(sqiBadSeconds) + 's';
+      }
+
+      function processIbi(beat) {
+        const ibiMs = beat.instantPeriod * 1000;
+        let flag = null;
+        
+        if (lastIbi > 0) {
+          const changeFrac = Math.abs(ibiMs - lastIbi) / lastIbi;
+          if (changeFrac > IBI_CHANGE_THRESHOLD) {
+            flag = {
+              type: 'successive_diff',
+              magnitude: Math.round(changeFrac * 1000) / 10, // as percentage with 1 decimal
+              prevIbi: Math.round(lastIbi),
+              currentIbi: Math.round(ibiMs)
+            };
+            flaggedBeatCount++;
+          } else {
+            cleanBeatCount++;
+          }
+        } else {
+          // First beat — no comparison possible, count as clean
+          cleanBeatCount++;
+        }
+        
+        lastIbi = ibiMs;
+        
+        const entry = { time: beat.time, ibiMs: Math.round(ibiMs * 10) / 10, flag };
+        ibiFlags.push(entry);
+        
+        // Update UI
+        ui.statClean.textContent = cleanBeatCount;
+        ui.statFlagged.textContent = flaggedBeatCount;
+        const total = cleanBeatCount + flaggedBeatCount;
+        const flagRate = total > 0 ? Math.round(flaggedBeatCount / total * 100) : 0;
+        ui.statFlagRate.textContent = flagRate + '%';
+        ui.statFlagRate.style.color = flagRate > 15 ? 'var(--accent-red)' : flagRate > 5 ? 'var(--accent-yellow)' : 'var(--accent-green)';
+        
+        // IBI stability meter: show the last successive change ratio
+        // Inverted: 0% change = full bar (stable), 30%+ = empty (unstable)
+        if (lastIbi > 0 && ibiFlags.length >= 2) {
+          const prevEntry = ibiFlags[ibiFlags.length - 2];
+          if (prevEntry.ibiMs > 0) {
+            const changePct = Math.abs(entry.ibiMs - prevEntry.ibiMs) / prevEntry.ibiMs * 100;
+            const stabilityPct = Math.max(0, 100 - (changePct / 0.35)); // 35% change = 0% bar
+            const stabilityColor = changePct > 30 ? 'var(--accent-red)' : changePct > 15 ? 'var(--accent-yellow)' : 'var(--accent-green)';
+            ui.ibiStabilityValue.textContent = changePct.toFixed(1) + '%';
+            ui.ibiStabilityValue.style.color = stabilityColor;
+            ui.ibiBar.style.width = stabilityPct + '%';
+            ui.ibiBar.style.background = stabilityColor;
+          }
+        }
+        
+        // Log entry
+        const elapsed = ((beat.time - sessionStartTime) / 1000).toFixed(1);
+        const logLine = document.createElement('div');
+        if (flag) {
+          logLine.className = 'flag';
+          logLine.textContent = `[${elapsed}s] IBI ${Math.round(ibiMs)}ms ⚠ Δ${flag.magnitude}% (${flag.prevIbi}→${flag.currentIbi}ms)`;
+        } else {
+          logLine.className = 'clean';
+          logLine.textContent = `[${elapsed}s] IBI ${Math.round(ibiMs)}ms ✓`;
+        }
+        ui.ibiLog.appendChild(logLine);
+        ui.ibiLog.scrollTop = ui.ibiLog.scrollHeight;
       }
 
       function updateTimer() {
@@ -598,14 +854,29 @@
         validationData.syncMarkers = [];
         validationData.toneTimestamps = [];
         validationData.pulseBeepTimestamps = [];
+        validationData.ibiFlags = [];
+        validationData.sqiTimeSeries = [];
+        validationData.qualitySummary = {};
         waveBuffer = [];
         pulseBeepEnabled = false;
         ui.pulseBeep.classList.remove('active');
         ui.pulseBeep.textContent = '';
         ui.pulseBeep.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg> Pulse Beep: OFF';
         
+        // Reset IBI/SQI state
+        lastIbi = 0; cleanBeatCount = 0; flaggedBeatCount = 0; ibiFlags = [];
+        currentSqiValue = 0; sqiBadSeconds = 0; lastSqiCheckTime = 0; sqiTimeSeries = [];
+        ui.ibiLog.innerHTML = '';
+        ui.sqiValue.textContent = '--'; ui.sqiValue.style.color = 'var(--border)';
+        ui.sqiBar.style.width = '0%';
+        ui.ibiStabilityValue.textContent = '--'; ui.ibiStabilityValue.style.color = 'var(--border)';
+        ui.ibiBar.style.width = '0%';
+        ui.statClean.textContent = '0'; ui.statFlagged.textContent = '0';
+        ui.statFlagRate.textContent = '0%'; ui.statSqiBad.textContent = '0s';
+        
         ui.start.style.display = 'none';
         ui.activeControls.style.display = 'flex';
+        ui.qualityPanel.style.display = 'flex';
         ui.beats.textContent = '0';
         ui.bpm.textContent = '--';
         ui.markers.textContent = '0';
@@ -648,6 +919,9 @@
             ui.beats.textContent = validationData.beatTimestamps.length;
             ui.bpm.textContent = Math.round(beat.averageBPM);
             
+            // IBI plausibility check
+            processIbi(beat);
+            
             // Pulse beep: fire tone on each detected beat
             if (pulseBeepEnabled) {
               const beepTime = performance.now();
@@ -679,6 +953,9 @@
             if (videoElement && videoElement.readyState === videoElement.HAVE_ENOUGH_DATA) {
               previewCtx.drawImage(videoElement, 0, 0, 80 * dpr, 80 * dpr);
             }
+          },
+          onSqiUpdateCb: (sqi) => {
+            updateSqiDisplay(sqi);
           }
         });
       }
@@ -695,6 +972,22 @@
         ui.start.style.display = 'flex';
         ui.fingerDot.classList.remove('active');
         ui.fingerText.textContent = "Recording Stopped";
+
+        // Compute quality summary
+        const total = cleanBeatCount + flaggedBeatCount;
+        validationData.ibiFlags = ibiFlags;
+        validationData.sqiTimeSeries = sqiTimeSeries;
+        validationData.qualitySummary = {
+          totalBeats: total,
+          cleanBeats: cleanBeatCount,
+          flaggedBeats: flaggedBeatCount,
+          flagRate: total > 0 ? Math.round(flaggedBeatCount / total * 10000) / 100 : 0,
+          sqiBadSeconds: Math.round(sqiBadSeconds * 10) / 10,
+          sqiFinalValue: Math.round(currentSqiValue * 100000) / 100000,
+          ibiChangeThreshold: IBI_CHANGE_THRESHOLD,
+          sqiGoodThreshold: SQI_GOOD,
+          sqiWarnThreshold: SQI_WARN
+        };
 
         // Export JSON
         const dataStr = JSON.stringify(validationData, null, 2);
