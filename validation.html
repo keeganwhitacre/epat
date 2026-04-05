@@ -255,6 +255,10 @@
           <div class="quality-stat-value" id="stat-flag-rate">0%</div>
         </div>
         <div class="quality-stat">
+          <div class="quality-stat-label">Dicrotic ✕</div>
+          <div class="quality-stat-value" id="stat-dicrotic" style="color: var(--accent-purple);">0</div>
+        </div>
+        <div class="quality-stat">
           <div class="quality-stat-label">SQI Bad</div>
           <div class="quality-stat-value" id="stat-sqi-bad" style="color: var(--accent-red);">0s</div>
         </div>
@@ -402,8 +406,16 @@
       let fingerDebounceCount = 0; const FINGER_DEBOUNCE_FRAMES = 8;
       let instantPeriod = 0, averagePeriod = 0, recentPeriods = [];
       const MAX_RECENT_PERIODS = 10;
-      let onBeat = null, onFingerChange = null, onPPGSample = null, onSqiUpdate = null;
+      let onBeat = null, onFingerChange = null, onPPGSample = null, onSqiUpdate = null, onDicroticReject = null;
       let actualFPS = 30;
+
+      // --- Dicrotic notch rejection state ---
+      // Track the previous accepted IBI and beat time so we can detect
+      // the split pattern: a real beat followed by a dicrotic onset that
+      // creates two short IBIs summing to approximately the expected period.
+      let prevAcceptedIbi = 0;       // ms, last accepted interval
+      let prevAcceptedBeatTime = 0;  // time of the beat before lastBeatTime
+      let dicroticRejectCount = 0;   // diagnostic counter
 
       let hpState = { x1: 0, y1: 0 }, lpState = { y1: 0 };
       let HP_ALPHA, LP_ALPHA;
@@ -482,16 +494,73 @@
           if (result.detected) {
             const beatTime = now - (1000 / actualFPS);
             const interval = beatTime - lastBeatTime;
-            lastBeatTime = beatTime;
             const MIN_IBI_MS = 400;
             if (interval > MIN_IBI_MS && interval < (60000 / MIN_BPM)) {
-              instantPeriod = interval / 1000;
-              const instantBPM = 60 / instantPeriod;
-              recentPeriods.push(instantPeriod);
-              if (recentPeriods.length > MAX_RECENT_PERIODS) recentPeriods.shift();
-              averagePeriod = recentPeriods.reduce((a, b) => a + b, 0) / recentPeriods.length;
-              const averageBPM = 60 / averagePeriod;
-              if (onBeat) onBeat({ instantBPM, averageBPM, instantPeriod, averagePeriod, time: beatTime });
+
+              // --- Dicrotic notch rejection ---
+              // The dicrotic notch produces a false onset ~300-500ms after the
+              // true systolic onset, creating a characteristic split pattern:
+              //   Real beat → (short IBI) → Dicrotic notch → (short IBI) → Real beat
+              // Both short IBIs are well below the running average, and they sum
+              // to approximately one true cardiac cycle.
+              //
+              // Detection: if this IBI is significantly shorter than the running
+              // average AND the sum of this IBI + the previous IBI is close to
+              // the expected period, this is a dicrotic notch, not a real beat.
+              // We reject it and rewind lastBeatTime so the next real beat gets
+              // the correct full-length interval.
+              const DICROTIC_SHORT_RATIO = 0.75; // IBI must be < 75% of average to be suspicious
+              const DICROTIC_SUM_TOLERANCE = 0.15; // sum must be within 15% of average period
+              
+              let isDicrotic = false;
+              if (averagePeriod > 0 && prevAcceptedIbi > 0) {
+                const avgMs = averagePeriod * 1000;
+                const isShort = interval < avgMs * DICROTIC_SHORT_RATIO;
+                if (isShort) {
+                  // Check if this IBI + previous IBI ≈ one expected period
+                  const pairSum = interval + prevAcceptedIbi;
+                  const sumDeviation = Math.abs(pairSum - avgMs) / avgMs;
+                  if (sumDeviation < DICROTIC_SUM_TOLERANCE) {
+                    isDicrotic = true;
+                  }
+                }
+              }
+
+              if (isDicrotic) {
+                // Reject: rewind lastBeatTime to the beat before the false split
+                // so the next real onset measures the full interval from the
+                // last true beat.
+                lastBeatTime = prevAcceptedBeatTime;
+                // Also remove the previous (now-contaminated) period from the
+                // averaging buffer, since that IBI was the first half of the split.
+                if (recentPeriods.length > 0) {
+                  recentPeriods.pop();
+                  if (recentPeriods.length > 0) {
+                    averagePeriod = recentPeriods.reduce((a, b) => a + b, 0) / recentPeriods.length;
+                  }
+                }
+                dicroticRejectCount++;
+                // Fire a dedicated callback so the UI/logger can track rejections
+                if (onDicroticReject) onDicroticReject({
+                  time: beatTime,
+                  rejectedIbi: interval,
+                  prevIbi: prevAcceptedIbi,
+                  pairSum: interval + prevAcceptedIbi,
+                  expectedPeriod: averagePeriod * 1000
+                });
+              } else {
+                // Accept the beat
+                prevAcceptedBeatTime = lastBeatTime;
+                prevAcceptedIbi = interval;
+                lastBeatTime = beatTime;
+                instantPeriod = interval / 1000;
+                const instantBPM = 60 / instantPeriod;
+                recentPeriods.push(instantPeriod);
+                if (recentPeriods.length > MAX_RECENT_PERIODS) recentPeriods.shift();
+                averagePeriod = recentPeriods.reduce((a, b) => a + b, 0) / recentPeriods.length;
+                const averageBPM = 60 / averagePeriod;
+                if (onBeat) onBeat({ instantBPM, averageBPM, instantPeriod, averagePeriod, time: beatTime });
+              }
             }
           }
         }
@@ -540,14 +609,15 @@
       }
 
       return {
-        async start({ video, canvas, onBeatCb, onFingerChangeCb, onPPGSampleCb, onSqiUpdateCb }) {
+        async start({ video, canvas, onBeatCb, onFingerChangeCb, onPPGSampleCb, onSqiUpdateCb, onDicroticRejectCb }) {
           videoEl = video; canvasEl = canvas; ctx = canvas.getContext("2d");
           canvasEl.width = IMAGE_SIZE; canvasEl.height = IMAGE_SIZE;
           onBeat = onBeatCb; onFingerChange = onFingerChangeCb; onPPGSample = onPPGSampleCb || null;
-          onSqiUpdate = onSqiUpdateCb || null;
+          onSqiUpdate = onSqiUpdateCb || null; onDicroticReject = onDicroticRejectCb || null;
           rawBuffer = []; timeBuffer = []; filteredBuffer = []; recentPeriods = [];
           lastBeatTime = 0; fingerPresent = false; fingerDebounceCount = 0;
           lastSqiTime = 0; currentSqi = 0;
+          prevAcceptedIbi = 0; prevAcceptedBeatTime = 0; dicroticRejectCount = 0;
           await startCamera();
           computeFilterCoeffs(actualFPS); resetFilters();
           WabpDetector.reset(actualFPS);
@@ -556,6 +626,7 @@
         async stop() { running = false; if (animFrameId) cancelAnimationFrame(animFrameId); await stopCamera(); },
         getActualFPS() { return actualFPS; },
         getSqi() { return currentSqi; },
+        getDicroticRejectCount() { return dicroticRejectCount; },
       };
     })();
 
@@ -643,6 +714,7 @@
       let sqiBadSeconds = 0; // cumulative seconds SQI was below SQI_WARN
       let lastSqiCheckTime = 0;
       let sqiTimeSeries = []; // for export: { time, sqi }
+      let dicroticRejections = []; // for export: { time, rejectedIbi, prevIbi, pairSum, expectedPeriod }
       
       let validationData = {
         sessionID: "",
@@ -653,6 +725,7 @@
         pulseBeepTimestamps: [],
         ibiFlags: [],
         sqiTimeSeries: [],
+        dicroticRejections: [],
         qualitySummary: {}
       };
 
@@ -684,6 +757,7 @@
         statClean: document.getElementById('stat-clean'),
         statFlagged: document.getElementById('stat-flagged'),
         statFlagRate: document.getElementById('stat-flag-rate'),
+        statDicrotic: document.getElementById('stat-dicrotic'),
         statSqiBad: document.getElementById('stat-sqi-bad'),
         ibiLog: document.getElementById('ibi-log'),
       };
@@ -866,6 +940,7 @@
         // Reset IBI/SQI state
         lastIbi = 0; cleanBeatCount = 0; flaggedBeatCount = 0; ibiFlags = [];
         currentSqiValue = 0; sqiBadSeconds = 0; lastSqiCheckTime = 0; sqiTimeSeries = [];
+        dicroticRejections = [];
         ui.ibiLog.innerHTML = '';
         ui.sqiValue.textContent = '--'; ui.sqiValue.style.color = 'var(--border)';
         ui.sqiBar.style.width = '0%';
@@ -873,6 +948,7 @@
         ui.ibiBar.style.width = '0%';
         ui.statClean.textContent = '0'; ui.statFlagged.textContent = '0';
         ui.statFlagRate.textContent = '0%'; ui.statSqiBad.textContent = '0s';
+        ui.statDicrotic.textContent = '0';
         
         ui.start.style.display = 'none';
         ui.activeControls.style.display = 'flex';
@@ -956,6 +1032,17 @@
           },
           onSqiUpdateCb: (sqi) => {
             updateSqiDisplay(sqi);
+          },
+          onDicroticRejectCb: (info) => {
+            dicroticRejections.push(info);
+            ui.statDicrotic.textContent = dicroticRejections.length;
+            // Log the rejection
+            const elapsed = ((info.time - sessionStartTime) / 1000).toFixed(1);
+            const logLine = document.createElement('div');
+            logLine.className = 'bad';
+            logLine.textContent = `[${elapsed}s] DICROTIC ✕ ${Math.round(info.prevIbi)}+${Math.round(info.rejectedIbi)}=${Math.round(info.pairSum)}ms ≈ ${Math.round(info.expectedPeriod)}ms expected`;
+            ui.ibiLog.appendChild(logLine);
+            ui.ibiLog.scrollTop = ui.ibiLog.scrollHeight;
           }
         });
       }
@@ -977,11 +1064,13 @@
         const total = cleanBeatCount + flaggedBeatCount;
         validationData.ibiFlags = ibiFlags;
         validationData.sqiTimeSeries = sqiTimeSeries;
+        validationData.dicroticRejections = dicroticRejections;
         validationData.qualitySummary = {
           totalBeats: total,
           cleanBeats: cleanBeatCount,
           flaggedBeats: flaggedBeatCount,
           flagRate: total > 0 ? Math.round(flaggedBeatCount / total * 10000) / 100 : 0,
+          dicroticRejectsCount: dicroticRejections.length,
           sqiBadSeconds: Math.round(sqiBadSeconds * 10) / 10,
           sqiFinalValue: Math.round(currentSqiValue * 100000) / 100000,
           ibiChangeThreshold: IBI_CHANGE_THRESHOLD,
