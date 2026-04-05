@@ -566,6 +566,13 @@
                 const averageBPM = 60 / averagePeriod;
                 if (onBeat) onBeat({ instantBPM, averageBPM, instantPeriod, averagePeriod, time: beatTime });
               }
+            } else {
+              // Interval outside plausible range (< 400ms or > 1500ms).
+              // Still advance lastBeatTime so the next onset has a valid
+              // reference — without this, the first-ever onset (which always
+              // has interval = now - 0 = huge) would leave lastBeatTime at 0
+              // and no beat would ever be accepted.
+              lastBeatTime = beatTime;
             }
           }
         }
