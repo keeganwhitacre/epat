@@ -513,7 +513,12 @@
               const DICROTIC_SUM_TOLERANCE = 0.15; // sum must be within 15% of average period
               
               let isDicrotic = false;
-              if (averagePeriod > 0 && prevAcceptedIbi > 0) {
+              // Only run dicrotic detection once the averaging buffer has
+              // stabilised (≥4 accepted periods). Before that, the average
+              // period is too volatile and false rejections cascade via the
+              // lastBeatTime rewind, stalling beat detection entirely.
+              const DICROTIC_MIN_PERIODS = 4;
+              if (recentPeriods.length >= DICROTIC_MIN_PERIODS && prevAcceptedIbi > 0) {
                 const avgMs = averagePeriod * 1000;
                 const isShort = interval < avgMs * DICROTIC_SHORT_RATIO;
                 if (isShort) {
