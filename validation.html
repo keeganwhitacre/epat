@@ -475,9 +475,6 @@
       let actualFPS = 30;
 
       // --- Dicrotic notch rejection state ---
-      // Track the previous accepted IBI and beat time so we can detect
-      // the split pattern: a real beat followed by a dicrotic onset that
-      // creates two short IBIs summing to approximately the expected period.
       let prevAcceptedIbi = 0;       // ms, last accepted interval
       let prevAcceptedBeatTime = 0;  // time of the beat before lastBeatTime
       let dicroticRejectCount = 0;   // diagnostic counter
@@ -511,16 +508,11 @@
       }
 
       // --- SQI (Signal Quality Index) via Perfusion Index ---
-      // Computed every ~1s from the raw (pre-bandpass) red channel.
-      // Perfusion Index = AC amplitude / DC level = (max - min) / mean over a sliding window.
-      // In clinical pulse-ox, PI < 0.1–0.2% is unreliable. Camera PPG has higher
-      // absolute values due to the optical path, so thresholds are calibrated higher.
       let lastSqiTime = 0, currentSqi = 0;
-      const SQI_INTERVAL_MS = 1000; // recompute every second
-      const SQI_WINDOW_S = 2; // use 2 seconds of raw data
+      const SQI_INTERVAL_MS = 1000; 
+      const SQI_WINDOW_S = 2; 
 
       function computeSqi() {
-        // Need at least SQI_WINDOW_S worth of samples
         const windowSamples = Math.round(actualFPS * SQI_WINDOW_S);
         if (rawBuffer.length < windowSamples) return 0;
         const slice = rawBuffer.slice(-windowSamples);
@@ -531,9 +523,7 @@
           sum += slice[i];
         }
         const mean = sum / slice.length;
-        if (mean < 0.001) return 0; // no signal
-        // AC/DC ratio. Raw values are 0-1 (normalised red channel).
-        // For camera PPG with torch, typical good PI is 0.005–0.03.
+        if (mean < 0.001) return 0; 
         return (max - min) / mean;
       }
 
@@ -547,7 +537,6 @@
         if (rawBuffer.length > BUFFER_SIZE) { rawBuffer.shift(); timeBuffer.shift(); filteredBuffer.shift(); }
         if (onPPGSample) onPPGSample(filtered);
 
-        // Recompute SQI every SQI_INTERVAL_MS
         if (fingerPresent && (now - lastSqiTime > SQI_INTERVAL_MS)) {
           currentSqi = computeSqi();
           lastSqiTime = now;
@@ -560,62 +549,35 @@
             const beatTime = now - (1000 / actualFPS);
             const interval = beatTime - lastBeatTime;
             const MIN_IBI_MS = 400;
+            
             if (interval > MIN_IBI_MS && interval < (60000 / MIN_BPM)) {
 
-              // --- Dicrotic notch rejection ---
-              // The dicrotic notch produces a false onset ~300-500ms after the
-              // true systolic onset, creating a characteristic split pattern:
-              //   Real beat → (short IBI) → Dicrotic notch → (short IBI) → Real beat
-              // Both short IBIs are well below the running average, and they sum
-              // to approximately one true cardiac cycle.
-              //
-              // Detection: if this IBI is significantly shorter than the running
-              // average AND the sum of this IBI + the previous IBI is close to
-              // the expected period, this is a dicrotic notch, not a real beat.
-              // We reject it and rewind lastBeatTime so the next real beat gets
-              // the correct full-length interval.
-              const DICROTIC_SHORT_RATIO = 0.75; // IBI must be < 75% of average to be suspicious
-              const DICROTIC_SUM_TOLERANCE = 0.15; // sum must be within 15% of average period
-              
+              // --- Dynamic Refractory Period (Dicrotic Notch Rejection) ---
               let isDicrotic = false;
-              // Only run dicrotic detection once the averaging buffer has
-              // stabilised (≥4 accepted periods). Before that, the average
-              // period is too volatile and false rejections cascade via the
-              // lastBeatTime rewind, stalling beat detection entirely.
               const DICROTIC_MIN_PERIODS = 4;
+
               if (recentPeriods.length >= DICROTIC_MIN_PERIODS && prevAcceptedIbi > 0) {
                 const avgMs = averagePeriod * 1000;
-                const isShort = interval < avgMs * DICROTIC_SHORT_RATIO;
-                if (isShort) {
-                  // Check if this IBI + previous IBI ≈ one expected period
-                  const pairSum = interval + prevAcceptedIbi;
-                  const sumDeviation = Math.abs(pairSum - avgMs) / avgMs;
-                  if (sumDeviation < DICROTIC_SUM_TOLERANCE) {
-                    isDicrotic = true;
-                  }
+                
+                // Physiologically, a sudden drop to < 65% of the running average IBI 
+                // is almost always a dicrotic notch or a motion artifact, not a real beat.
+                const REFRACTORY_LIMIT = avgMs * 0.65; 
+
+                if (interval < REFRACTORY_LIMIT) {
+                  isDicrotic = true;
                 }
               }
 
               if (isDicrotic) {
-                // Reject: rewind lastBeatTime to the beat before the false split
-                // so the next real onset measures the full interval from the
-                // last true beat.
-                lastBeatTime = prevAcceptedBeatTime;
-                // Also remove the previous (now-contaminated) period from the
-                // averaging buffer, since that IBI was the first half of the split.
-                if (recentPeriods.length > 0) {
-                  recentPeriods.pop();
-                  if (recentPeriods.length > 0) {
-                    averagePeriod = recentPeriods.reduce((a, b) => a + b, 0) / recentPeriods.length;
-                  }
-                }
+                // Reject: We DO NOT rewind lastBeatTime here. 
+                // We simply ignore this false peak so the interval continues 
+                // accumulating until the next REAL systolic peak arrives.
                 dicroticRejectCount++;
+                
                 // Fire a dedicated callback so the UI/logger can track rejections
                 if (onDicroticReject) onDicroticReject({
                   time: beatTime,
                   rejectedIbi: interval,
-                  prevIbi: prevAcceptedIbi,
-                  pairSum: interval + prevAcceptedIbi,
                   expectedPeriod: averagePeriod * 1000
                 });
               } else {
@@ -633,10 +595,6 @@
               }
             } else {
               // Interval outside plausible range (< 400ms or > 1500ms).
-              // Still advance lastBeatTime so the next onset has a valid
-              // reference — without this, the first-ever onset (which always
-              // has interval = now - 0 = huge) would leave lastBeatTime at 0
-              // and no beat would ever be accepted.
               lastBeatTime = beatTime;
             }
           }
@@ -785,20 +743,13 @@
       let ibiFlags = []; // per-beat: { time, ibiMs, flag: null | { type, magnitude, prevIbi } }
       
       // --- SQI State ---
-      // SQI thresholds for camera PPG perfusion index.
-      // These are AC/DC ratios on the raw red channel (0-1 normalised).
-      // With torch + finger, a clean pulsatile signal typically produces
-      // PI of 0.005–0.03. Below ~0.003 the AC component is too flat
-      // to trust IBI extraction — the waveform is dominated by sensor noise
-      // and ISP quantisation rather than arterial pulsation.
       const SQI_GOOD = 0.008;   // confident: clear pulse morphology
       const SQI_WARN = 0.003;   // marginal: beats may be detectable but noisy
-      // Below SQI_WARN: unreliable — finger pressure, ambient light leak, or motion
       let currentSqiValue = 0;
       let sqiBadSeconds = 0; // cumulative seconds SQI was below SQI_WARN
       let lastSqiCheckTime = 0;
       let sqiTimeSeries = []; // for export: { time, sqi }
-      let dicroticRejections = []; // for export: { time, rejectedIbi, prevIbi, pairSum, expectedPeriod }
+      let dicroticRejections = []; // for export
       
       let validationData = {
         sessionID: "",
@@ -881,15 +832,15 @@
         // Log to time series
         sqiTimeSeries.push({ time: now, sqi: Math.round(sqi * 100000) / 100000 });
         
-        // Display value as percentage (more intuitive than raw ratio)
+        // Display value as percentage
         const pct = (sqi * 100).toFixed(2);
         ui.sqiValue.textContent = pct + '%';
         
-        // Color + bar: green > SQI_GOOD, yellow SQI_WARN–SQI_GOOD, red < SQI_WARN
+        // Color + bar
         let color, barPct;
         if (sqi >= SQI_GOOD) {
           color = 'var(--accent-green)';
-          barPct = Math.min(100, (sqi / 0.04) * 100); // scale: 0.04 = full bar
+          barPct = Math.min(100, (sqi / 0.04) * 100); 
         } else if (sqi >= SQI_WARN) {
           color = 'var(--accent-yellow)';
           barPct = Math.min(100, (sqi / 0.04) * 100);
@@ -912,7 +863,7 @@
           if (changeFrac > IBI_CHANGE_THRESHOLD) {
             flag = {
               type: 'successive_diff',
-              magnitude: Math.round(changeFrac * 1000) / 10, // as percentage with 1 decimal
+              magnitude: Math.round(changeFrac * 1000) / 10,
               prevIbi: Math.round(lastIbi),
               currentIbi: Math.round(ibiMs)
             };
@@ -921,7 +872,6 @@
             cleanBeatCount++;
           }
         } else {
-          // First beat — no comparison possible, count as clean
           cleanBeatCount++;
         }
         
@@ -938,13 +888,11 @@
         ui.statFlagRate.textContent = flagRate + '%';
         ui.statFlagRate.style.color = flagRate > 15 ? 'var(--accent-red)' : flagRate > 5 ? 'var(--accent-yellow)' : 'var(--accent-green)';
         
-        // IBI stability meter: show the last successive change ratio
-        // Inverted: 0% change = full bar (stable), 30%+ = empty (unstable)
         if (lastIbi > 0 && ibiFlags.length >= 2) {
           const prevEntry = ibiFlags[ibiFlags.length - 2];
           if (prevEntry.ibiMs > 0) {
             const changePct = Math.abs(entry.ibiMs - prevEntry.ibiMs) / prevEntry.ibiMs * 100;
-            const stabilityPct = Math.max(0, 100 - (changePct / 0.35)); // 35% change = 0% bar
+            const stabilityPct = Math.max(0, 100 - (changePct / 0.35)); 
             const stabilityColor = changePct > 30 ? 'var(--accent-red)' : changePct > 15 ? 'var(--accent-yellow)' : 'var(--accent-green)';
             ui.ibiStabilityValue.textContent = changePct.toFixed(1) + '%';
             ui.ibiStabilityValue.style.color = stabilityColor;
@@ -988,7 +936,6 @@
         ui.markers.textContent = validationData.syncMarkers.length;
         triggerFlash();
         
-        // Button visual feedback if manual
         if(type === 'manual') {
           ui.sync.style.background = "#fff";
           ui.sync.style.color = "var(--accent-purple)";
@@ -1027,13 +974,12 @@
         ui.pulseBeep.textContent = '';
         ui.pulseBeep.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg> Pulse Beep: OFF';
         
-        // Reset IBI/SQI state
         lastIbi = 0; cleanBeatCount = 0; flaggedBeatCount = 0; ibiFlags = [];
         currentSqiValue = 0; sqiBadSeconds = 0; lastSqiCheckTime = 0; sqiTimeSeries = [];
         dicroticRejections = [];
-        // Reset knob state
         knobToneTimings = []; knobEnabled = false; knobValue = 0; knobAngle = 0;
         currentAveragePeriodForKnob = 0; currentInstantPeriodForKnob = 0;
+        
         ui.knobToggle.classList.remove('active');
         ui.knobToggle.style.background = 'var(--border)'; ui.knobToggle.style.color = 'var(--fg-muted)';
         ui.knobToggle.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v8"/></svg> PAT Knob: OFF';
@@ -1067,7 +1013,6 @@
 
         await WakeLockCtrl.request();
         
-        // Start Motion Detector with warning callback AND tap callback
         MotionDetector.start(
           () => {
             ui.motionWarning.classList.add("visible");
@@ -1094,14 +1039,11 @@
             ui.beats.textContent = validationData.beatTimestamps.length;
             ui.bpm.textContent = Math.round(beat.averageBPM);
             
-            // Track periods for knob delay computation
             currentAveragePeriodForKnob = beat.averagePeriod;
             currentInstantPeriodForKnob = beat.instantPeriod;
             
-            // IBI plausibility check
             processIbi(beat);
             
-            // Pulse beep: fire tone on each detected beat (immediate)
             if (pulseBeepEnabled && !knobEnabled) {
               const beepTime = performance.now();
               AudioEngine.resume();
@@ -1109,13 +1051,11 @@
               validationData.pulseBeepTimestamps.push(beepTime);
             }
             
-            // PAT Knob mode: schedule tone at delay = (averagePeriod / 2) * knobValue
             if (knobEnabled) {
               const delay = (currentAveragePeriodForKnob / 2) * knobValue;
               const dNow = delay < 0 ? currentInstantPeriodForKnob + delay : delay;
               if (dNow > 0 && dNow < 3) {
                 AudioEngine.resume();
-                // Use setTimeout since validation AudioEngine doesn't have scheduleAt
                 const scheduleTime = performance.now();
                 setTimeout(() => { AudioEngine.play(); }, dNow * 1000);
                 knobToneTimings.push({
@@ -1162,7 +1102,7 @@
             const elapsed = ((info.time - sessionStartTime) / 1000).toFixed(1);
             const logLine = document.createElement('div');
             logLine.className = 'bad';
-            logLine.textContent = `[${elapsed}s] DICROTIC ✕ ${Math.round(info.prevIbi)}+${Math.round(info.rejectedIbi)}=${Math.round(info.pairSum)}ms ≈ ${Math.round(info.expectedPeriod)}ms expected`;
+            logLine.textContent = `[${elapsed}s] DICROTIC ✕ Rejected ${Math.round(info.rejectedIbi)}ms (Expected ≈ ${Math.round(info.expectedPeriod)}ms)`;
             ui.ibiLog.appendChild(logLine);
             ui.ibiLog.scrollTop = ui.ibiLog.scrollHeight;
           }
@@ -1182,7 +1122,6 @@
         ui.fingerDot.classList.remove('active');
         ui.fingerText.textContent = "Recording Stopped";
 
-        // Compute quality summary
         const total = cleanBeatCount + flaggedBeatCount;
         validationData.ibiFlags = ibiFlags;
         validationData.sqiTimeSeries = sqiTimeSeries;
@@ -1201,7 +1140,6 @@
           sqiWarnThreshold: SQI_WARN
         };
 
-        // Export JSON
         const dataStr = JSON.stringify(validationData, null, 2);
         const blob = new Blob([dataStr], { type: "application/json" });
         const url = URL.createObjectURL(blob);
@@ -1232,7 +1170,6 @@
           ui.pulseBeep.addEventListener('touchstart', (e) => { e.preventDefault(); togglePulseBeep(); });
           ui.pulseBeep.addEventListener('click', togglePulseBeep);
 
-          // --- PAT Knob toggle ---
           function toggleKnob() {
             knobEnabled = !knobEnabled;
             const label = knobEnabled ? 'ON' : 'OFF';
@@ -1240,7 +1177,6 @@
             if (knobEnabled) {
               ui.knobToggle.style.background = 'var(--accent-blue)'; ui.knobToggle.style.color = '#fff';
               ui.knobPanel.style.display = 'flex';
-              // Disable pulse beep — mutually exclusive
               pulseBeepEnabled = false;
               ui.pulseBeep.classList.remove('active');
               ui.pulseBeep.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg> Pulse Beep: OFF';
@@ -1252,7 +1188,6 @@
           ui.knobToggle.addEventListener('touchstart', (e) => { e.preventDefault(); toggleKnob(); });
           ui.knobToggle.addEventListener('click', toggleKnob);
 
-          // --- Dial ticks ---
           const tickContainer = document.getElementById('knob-dial-ticks');
           if (tickContainer) {
             for (let i = 0; i < 48; i++) {
@@ -1264,7 +1199,6 @@
             }
           }
 
-          // --- Dial pointer interaction ---
           const dialEl = ui.knobDial;
           if (dialEl) {
             dialEl.addEventListener('pointerdown', (e) => {
