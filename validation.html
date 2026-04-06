@@ -158,6 +158,7 @@
     .ibi-log .flag { color: var(--accent-yellow); }
     .ibi-log .clean { color: var(--accent-green); }
     .ibi-log .bad { color: var(--accent-red); }
+    .ibi-log .info { color: var(--accent-blue); }
 
     /* PAT Knob Panel */
     .knob-panel {
@@ -471,13 +472,13 @@
       let fingerDebounceCount = 0; const FINGER_DEBOUNCE_FRAMES = 8;
       let instantPeriod = 0, averagePeriod = 0, recentPeriods = [];
       const MAX_RECENT_PERIODS = 10;
-      let onBeat = null, onFingerChange = null, onPPGSample = null, onSqiUpdate = null, onDicroticReject = null;
+      let onBeat = null, onFingerChange = null, onPPGSample = null, onSqiUpdate = null, onDicroticReject = null, onAnchorReset = null;
       let actualFPS = 30;
 
       // --- Dicrotic notch rejection state ---
-      let prevAcceptedIbi = 0;       // ms, last accepted interval
-      let prevAcceptedBeatTime = 0;  // time of the beat before lastBeatTime
-      let dicroticRejectCount = 0;   // diagnostic counter
+      let prevAcceptedIbi = 0;       
+      let prevAcceptedBeatTime = 0;  
+      let dicroticRejectCount = 0;   
 
       let hpState = { x1: 0, y1: 0 }, lpState = { y1: 0 };
       let HP_ALPHA, LP_ALPHA;
@@ -507,7 +508,6 @@
         return rM;
       }
 
-      // --- SQI (Signal Quality Index) via Perfusion Index ---
       let lastSqiTime = 0, currentSqi = 0;
       const SQI_INTERVAL_MS = 1000; 
       const SQI_WINDOW_S = 2; 
@@ -548,54 +548,66 @@
           if (result.detected) {
             const beatTime = now - (1000 / actualFPS);
             const interval = beatTime - lastBeatTime;
-            const MIN_IBI_MS = 400;
-            
-            if (interval > MIN_IBI_MS && interval < (60000 / MIN_BPM)) {
 
-              // --- Dynamic Refractory Period (Dicrotic Notch Rejection) ---
-              let isDicrotic = false;
-              const DICROTIC_MIN_PERIODS = 4;
-
-              if (recentPeriods.length >= DICROTIC_MIN_PERIODS && prevAcceptedIbi > 0) {
-                const avgMs = averagePeriod * 1000;
-                
-                // Physiologically, a sudden drop to < 65% of the running average IBI 
-                // is almost always a dicrotic notch or a motion artifact, not a real beat.
-                const REFRACTORY_LIMIT = avgMs * 0.65; 
-
-                if (interval < REFRACTORY_LIMIT) {
-                  isDicrotic = true;
-                }
-              }
-
-              if (isDicrotic) {
-                // Reject: We DO NOT rewind lastBeatTime here. 
-                // We simply ignore this false peak so the interval continues 
-                // accumulating until the next REAL systolic peak arrives.
-                dicroticRejectCount++;
-                
-                // Fire a dedicated callback so the UI/logger can track rejections
-                if (onDicroticReject) onDicroticReject({
-                  time: beatTime,
-                  rejectedIbi: interval,
-                  expectedPeriod: averagePeriod * 1000
-                });
-              } else {
-                // Accept the beat
-                prevAcceptedBeatTime = lastBeatTime;
-                prevAcceptedIbi = interval;
-                lastBeatTime = beatTime;
-                instantPeriod = interval / 1000;
-                const instantBPM = 60 / instantPeriod;
-                recentPeriods.push(instantPeriod);
-                if (recentPeriods.length > MAX_RECENT_PERIODS) recentPeriods.shift();
-                averagePeriod = recentPeriods.reduce((a, b) => a + b, 0) / recentPeriods.length;
-                const averageBPM = 60 / averagePeriod;
-                if (onBeat) onBeat({ instantBPM, averageBPM, instantPeriod, averagePeriod, time: beatTime });
-              }
-            } else {
-              // Interval outside plausible range (< 400ms or > 1500ms).
+            // BUG FIX 1: Smart Re-anchoring.
+            // If this is the first beat ever, OR it's been over 2.5 seconds (signal drop),
+            // we set the anchor and wait for the NEXT beat to get a valid interval.
+            if (lastBeatTime === 0 || interval > 2500) {
               lastBeatTime = beatTime;
+              recentPeriods = []; // Clear memory so we re-learn the new heart rate
+              if (onAnchorReset && interval > 2500) onAnchorReset();
+              animFrameId = requestAnimationFrame(processFrame);
+              return;
+            }
+
+            // BUG FIX 2: Silent Anchor Reset Prevention.
+            // If a peak happens impossibly fast (<300ms), it is pure noise. 
+            // We ignore it completely AND DO NOT UPDATE lastBeatTime.
+            if (interval < 300) {
+              animFrameId = requestAnimationFrame(processFrame);
+              return;
+            }
+
+            // Now we have a plausible interval (>= 300ms and <= 2500ms).
+            let isDicrotic = false;
+            const DICROTIC_MIN_PERIODS = 3;
+
+            if (recentPeriods.length >= DICROTIC_MIN_PERIODS) {
+              const avgMs = averagePeriod * 1000;
+              
+              // BUG FIX 3: Stricter Refractory Limit. 
+              // Raised from 65% to 75%. A resting heart rate cannot physically accelerate
+              // by >25% in a single beat. This locks out those 500ms notches securely.
+              const REFRACTORY_LIMIT = avgMs * 0.75; 
+
+              if (interval < REFRACTORY_LIMIT) {
+                isDicrotic = true;
+              }
+            }
+
+            if (isDicrotic) {
+              dicroticRejectCount++;
+              if (onDicroticReject) onDicroticReject({
+                time: beatTime,
+                rejectedIbi: interval,
+                expectedPeriod: averagePeriod * 1000
+              });
+              // CRUCIAL: Do NOT update lastBeatTime here.
+            } else {
+              // Valid Beat!
+              prevAcceptedBeatTime = lastBeatTime;
+              prevAcceptedIbi = interval;
+              lastBeatTime = beatTime;
+              
+              instantPeriod = interval / 1000;
+              const instantBPM = 60 / instantPeriod;
+              
+              recentPeriods.push(instantPeriod);
+              if (recentPeriods.length > MAX_RECENT_PERIODS) recentPeriods.shift();
+              averagePeriod = recentPeriods.reduce((a, b) => a + b, 0) / recentPeriods.length;
+              
+              const averageBPM = 60 / averagePeriod;
+              if (onBeat) onBeat({ instantBPM, averageBPM, instantPeriod, averagePeriod, time: beatTime });
             }
           }
         }
@@ -609,7 +621,6 @@
         const devices = await navigator.mediaDevices.enumerateDevices();
         const cameras = devices.filter((d) => d.kind === "videoinput");
         let torchWorking = false;
-        // Rank cameras: want standard wide back camera, skip ultra-wide/telephoto/virtual composites
         const ranked = [];
         for (const cam of cameras) {
           const label = (cam.label || "").toLowerCase();
@@ -644,11 +655,11 @@
       }
 
       return {
-        async start({ video, canvas, onBeatCb, onFingerChangeCb, onPPGSampleCb, onSqiUpdateCb, onDicroticRejectCb }) {
+        async start({ video, canvas, onBeatCb, onFingerChangeCb, onPPGSampleCb, onSqiUpdateCb, onDicroticRejectCb, onAnchorResetCb }) {
           videoEl = video; canvasEl = canvas; ctx = canvas.getContext("2d");
           canvasEl.width = IMAGE_SIZE; canvasEl.height = IMAGE_SIZE;
           onBeat = onBeatCb; onFingerChange = onFingerChangeCb; onPPGSample = onPPGSampleCb || null;
-          onSqiUpdate = onSqiUpdateCb || null; onDicroticReject = onDicroticRejectCb || null;
+          onSqiUpdate = onSqiUpdateCb || null; onDicroticReject = onDicroticRejectCb || null; onAnchorReset = onAnchorResetCb || null;
           rawBuffer = []; timeBuffer = []; filteredBuffer = []; recentPeriods = [];
           lastBeatTime = 0; fingerPresent = false; fingerDebounceCount = 0;
           lastSqiTime = 0; currentSqi = 0;
@@ -670,7 +681,7 @@
     // ============================================================
     const MotionDetector = (function () {
       const MOVEMENT_THRESHOLD = 0.2;
-      const HARD_TAP_THRESHOLD = 12; // Adjusted threshold for physical table rap
+      const HARD_TAP_THRESHOLD = 12; 
       
       let accBuffer = [], lastAcc = { x: 0, y: 0, z: 0 };
       let listening = false, permitted = false, onTapCb = null, onMovementWarning = null;
@@ -680,15 +691,13 @@
         const a = e.accelerationIncludingGravity || e.acceleration;
         if (!a) return;
         
-        // Calculate instantaneous delta (removes steady gravity component)
         const diffMag = Math.sqrt(Math.pow(a.x - lastAcc.x, 2) + Math.pow(a.y - lastAcc.y, 2) + Math.pow(a.z - lastAcc.z, 2));
         accBuffer.push(diffMag); 
         
-        // Check for massive sudden delta indicating a HARD TAP
         if (diffMag > HARD_TAP_THRESHOLD && !tapDebounce) {
           if (onTapCb) onTapCb();
           tapDebounce = true;
-          setTimeout(() => tapDebounce = false, 800); // 800ms debounce
+          setTimeout(() => tapDebounce = false, 800); 
         }
         
         lastAcc = { x: a.x, y: a.y, z: a.z };
@@ -733,23 +742,23 @@
       const KNOB_VALUE_RANGE = 1.0;
       let knobEnabled = false, knobValue = 0, knobAngle = 0;
       let knobDragging = false, knobCx = 0, knobCy = 0, knobLastAngle = 0;
-      let knobToneTimings = []; // logged to export
+      let knobToneTimings = []; 
       let currentAveragePeriodForKnob = 0, currentInstantPeriodForKnob = 0;
 
       // --- IBI Plausibility State ---
-      const IBI_CHANGE_THRESHOLD = 0.30; // 30% successive difference = flag
-      let lastIbi = 0; // ms
+      const IBI_CHANGE_THRESHOLD = 0.30; 
+      let lastIbi = 0; 
       let cleanBeatCount = 0, flaggedBeatCount = 0;
-      let ibiFlags = []; // per-beat: { time, ibiMs, flag: null | { type, magnitude, prevIbi } }
+      let ibiFlags = []; 
       
       // --- SQI State ---
-      const SQI_GOOD = 0.008;   // confident: clear pulse morphology
-      const SQI_WARN = 0.003;   // marginal: beats may be detectable but noisy
+      const SQI_GOOD = 0.008;   
+      const SQI_WARN = 0.003;   
       let currentSqiValue = 0;
-      let sqiBadSeconds = 0; // cumulative seconds SQI was below SQI_WARN
+      let sqiBadSeconds = 0; 
       let lastSqiCheckTime = 0;
-      let sqiTimeSeries = []; // for export: { time, sqi }
-      let dicroticRejections = []; // for export
+      let sqiTimeSeries = []; 
+      let dicroticRejections = []; 
       
       let validationData = {
         sessionID: "",
@@ -784,7 +793,6 @@
         waveCanvas: document.getElementById('wave-canvas'),
         previewCanvas: document.getElementById('camera-preview'),
         flash: document.getElementById('sync-flash'),
-        // Quality panel
         qualityPanel: document.getElementById('quality-panel'),
         sqiValue: document.getElementById('sqi-value'),
         sqiBar: document.getElementById('sqi-bar'),
@@ -796,7 +804,6 @@
         statDicrotic: document.getElementById('stat-dicrotic'),
         statSqiBad: document.getElementById('stat-sqi-bad'),
         ibiLog: document.getElementById('ibi-log'),
-        // Knob panel
         knobToggle: document.getElementById('btn-knob-toggle'),
         knobPanel: document.getElementById('knob-panel'),
         knobDial: document.getElementById('knob-dial'),
@@ -823,20 +830,16 @@
         currentSqiValue = sqi;
         const now = performance.now();
         
-        // Track cumulative bad-SQI time
         if (lastSqiCheckTime > 0 && sqi < SQI_WARN) {
           sqiBadSeconds += (now - lastSqiCheckTime) / 1000;
         }
         lastSqiCheckTime = now;
         
-        // Log to time series
         sqiTimeSeries.push({ time: now, sqi: Math.round(sqi * 100000) / 100000 });
         
-        // Display value as percentage
         const pct = (sqi * 100).toFixed(2);
         ui.sqiValue.textContent = pct + '%';
         
-        // Color + bar
         let color, barPct;
         if (sqi >= SQI_GOOD) {
           color = 'var(--accent-green)';
@@ -880,7 +883,6 @@
         const entry = { time: beat.time, ibiMs: Math.round(ibiMs * 10) / 10, flag };
         ibiFlags.push(entry);
         
-        // Update UI
         ui.statClean.textContent = cleanBeatCount;
         ui.statFlagged.textContent = flaggedBeatCount;
         const total = cleanBeatCount + flaggedBeatCount;
@@ -901,7 +903,6 @@
           }
         }
         
-        // Log entry
         const elapsed = ((beat.time - sessionStartTime) / 1000).toFixed(1);
         const logLine = document.createElement('div');
         if (flag) {
@@ -1098,11 +1099,18 @@
           onDicroticRejectCb: (info) => {
             dicroticRejections.push(info);
             ui.statDicrotic.textContent = dicroticRejections.length;
-            // Log the rejection
             const elapsed = ((info.time - sessionStartTime) / 1000).toFixed(1);
             const logLine = document.createElement('div');
             logLine.className = 'bad';
             logLine.textContent = `[${elapsed}s] DICROTIC ✕ Rejected ${Math.round(info.rejectedIbi)}ms (Expected ≈ ${Math.round(info.expectedPeriod)}ms)`;
+            ui.ibiLog.appendChild(logLine);
+            ui.ibiLog.scrollTop = ui.ibiLog.scrollHeight;
+          },
+          onAnchorResetCb: () => {
+            const elapsed = ((performance.now() - sessionStartTime) / 1000).toFixed(1);
+            const logLine = document.createElement('div');
+            logLine.className = 'info';
+            logLine.textContent = `[${elapsed}s] ⓘ Anchor Reset (Signal Lost / Start)`;
             ui.ibiLog.appendChild(logLine);
             ui.ibiLog.scrollTop = ui.ibiLog.scrollHeight;
           }
@@ -1231,3 +1239,5 @@
   </script>
 </body>
 </html>
+
+
