@@ -447,6 +447,7 @@
                 const onsetThresh = maxVal * 0.02; let onsetIdx = seLen - 2;
                 for (let j = seLen-2; j >= Math.max(0, seLen-2-halfEye); j--) { if (j > 0 && (slopeEnergyBuffer[j] - slopeEnergyBuffer[j-1]) < onsetThresh) { onsetIdx = j; break; } }
                 Ta += (maxVal - Ta) / 10; T1 = Ta / 3; lastOnsetIndex = sampleIndex; noDetectTimer = 0;
+                // Expose peakEnergy (maxVal) for the energy-gating logic
                 return { detected: true, peakEnergy: maxVal };
               }
             }
@@ -479,6 +480,10 @@
       let prevAcceptedIbi = 0;       
       let prevAcceptedBeatTime = 0;  
       let dicroticRejectCount = 0;   
+
+      // --- Energy-Gated Morphology State ---
+      let recentEnergies = [];
+      let averagePeakEnergy = 0;
 
       let hpState = { x1: 0, y1: 0 }, lpState = { y1: 0 };
       let HP_ALPHA, LP_ALPHA;
@@ -548,40 +553,40 @@
           if (result.detected) {
             const beatTime = now - (1000 / actualFPS);
             const interval = beatTime - lastBeatTime;
+            const currentEnergy = result.peakEnergy; // Grab the amplitude power!
 
-            // BUG FIX 1: Smart Re-anchoring.
-            // If this is the first beat ever, OR it's been over 2.5 seconds (signal drop),
-            // we set the anchor and wait for the NEXT beat to get a valid interval.
+            // Smart Re-anchoring.
             if (lastBeatTime === 0 || interval > 2500) {
               lastBeatTime = beatTime;
-              recentPeriods = []; // Clear memory so we re-learn the new heart rate
+              recentPeriods = [];
+              recentEnergies = []; // Clear energy memory too
               if (onAnchorReset && interval > 2500) onAnchorReset();
               animFrameId = requestAnimationFrame(processFrame);
               return;
             }
 
-            // BUG FIX 2: Silent Anchor Reset Prevention.
-            // If a peak happens impossibly fast (<300ms), it is pure noise. 
-            // We ignore it completely AND DO NOT UPDATE lastBeatTime.
+            // Silent Anchor Reset Prevention (Hard noise lockout).
             if (interval < 300) {
               animFrameId = requestAnimationFrame(processFrame);
               return;
             }
 
-            // Now we have a plausible interval (>= 300ms and <= 2500ms).
+            // --- Energy-Gated Refractory Period ---
             let isDicrotic = false;
             const DICROTIC_MIN_PERIODS = 3;
 
-            if (recentPeriods.length >= DICROTIC_MIN_PERIODS) {
+            if (recentPeriods.length >= DICROTIC_MIN_PERIODS && averagePeakEnergy > 0) {
               const avgMs = averagePeriod * 1000;
               
-              // BUG FIX 3: Stricter Refractory Limit. 
-              // Raised from 65% to 75%. A resting heart rate cannot physically accelerate
-              // by >25% in a single beat. This locks out those 500ms notches securely.
-              const REFRACTORY_LIMIT = avgMs * 0.75; 
-
-              if (interval < REFRACTORY_LIMIT) {
-                isDicrotic = true;
+              // 1. Is it early? (Less than 80% of average interval)
+              // This is permissive enough to allow natural HRV/RSA to pass the time gate...
+              if (interval < avgMs * 0.80) {
+                
+                // 2. Is it weak? (Less than 50% of average peak power)
+                // ...but if it is BOTH early AND weak, it is mathematically a dicrotic notch.
+                if (currentEnergy < averagePeakEnergy * 0.5) {
+                  isDicrotic = true;
+                }
               }
             }
 
@@ -590,7 +595,9 @@
               if (onDicroticReject) onDicroticReject({
                 time: beatTime,
                 rejectedIbi: interval,
-                expectedPeriod: averagePeriod * 1000
+                expectedPeriod: averagePeriod * 1000,
+                energy: currentEnergy,
+                expectedEnergy: averagePeakEnergy
               });
               // CRUCIAL: Do NOT update lastBeatTime here.
             } else {
@@ -602,9 +609,15 @@
               instantPeriod = interval / 1000;
               const instantBPM = 60 / instantPeriod;
               
+              // Update Period Averages
               recentPeriods.push(instantPeriod);
               if (recentPeriods.length > MAX_RECENT_PERIODS) recentPeriods.shift();
               averagePeriod = recentPeriods.reduce((a, b) => a + b, 0) / recentPeriods.length;
+              
+              // Update Morphology Averages
+              recentEnergies.push(currentEnergy);
+              if (recentEnergies.length > MAX_RECENT_PERIODS) recentEnergies.shift();
+              averagePeakEnergy = recentEnergies.reduce((a, b) => a + b, 0) / recentEnergies.length;
               
               const averageBPM = 60 / averagePeriod;
               if (onBeat) onBeat({ instantBPM, averageBPM, instantPeriod, averagePeriod, time: beatTime });
@@ -661,6 +674,10 @@
           onBeat = onBeatCb; onFingerChange = onFingerChangeCb; onPPGSample = onPPGSampleCb || null;
           onSqiUpdate = onSqiUpdateCb || null; onDicroticReject = onDicroticRejectCb || null; onAnchorReset = onAnchorResetCb || null;
           rawBuffer = []; timeBuffer = []; filteredBuffer = []; recentPeriods = [];
+          
+          // Reset energy state on start
+          recentEnergies = []; averagePeakEnergy = 0;
+          
           lastBeatTime = 0; fingerPresent = false; fingerDebounceCount = 0;
           lastSqiTime = 0; currentSqi = 0;
           prevAcceptedIbi = 0; prevAcceptedBeatTime = 0; dicroticRejectCount = 0;
@@ -1102,7 +1119,11 @@
             const elapsed = ((info.time - sessionStartTime) / 1000).toFixed(1);
             const logLine = document.createElement('div');
             logLine.className = 'bad';
-            logLine.textContent = `[${elapsed}s] DICROTIC ✕ Rejected ${Math.round(info.rejectedIbi)}ms (Expected ≈ ${Math.round(info.expectedPeriod)}ms)`;
+            
+            // Show the energy drop percentage!
+            const energyPct = Math.round((info.energy / info.expectedEnergy) * 100);
+            
+            logLine.textContent = `[${elapsed}s] DICROTIC ✕ Rejected ${Math.round(info.rejectedIbi)}ms (Power: ${energyPct}% of avg)`;
             ui.ibiLog.appendChild(logLine);
             ui.ibiLog.scrollTop = ui.ibiLog.scrollHeight;
           },
