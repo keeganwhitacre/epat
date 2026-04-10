@@ -1446,6 +1446,25 @@
         };
       }
 
+      async function endTrial(td) {
+  // Snapshot audio telemetry into this trial before pushing
+  td.audioDropLog = AudioEngine.getDropLog();
+  td.audioCtxState = AudioEngine.getState();
+  AudioEngine.clearDropLog();
+  AudioEngine.resetSchedulerState();
+
+  sessionData.data.push(td);
+  currentTrialIndex++;
+  if (currentTrialIndex >= NUM_TRIALS) {
+    trialDetectorRunning = false;
+    await BeatDetector.stop();
+    WakeLockCtrl.release();
+    show("screen-end");
+  } else {
+    startTrial();
+  }
+}
+
       function submitEMA() {
         const data = { type: "ema_response", session: isMorningEMA ? "morning" : "day" };
         if (isMorningEMA) {
