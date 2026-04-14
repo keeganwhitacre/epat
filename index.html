@@ -101,8 +101,6 @@
     .warning-box p { color: #fca5a5; margin-bottom: 0; font-size: 0.95rem; }
 
     /* ---- EMA Specific Styles ---- */
-    .ema-section { display: none; flex-direction: column; width: 100%; max-width: 340px; margin: 0 auto; }
-    .ema-section.active { display: flex; }
     
     .slider-group { width: 100%; margin-bottom: 36px; }
     .slider-header { display: flex; justify-content: space-between; align-items: baseline; }
@@ -227,13 +225,15 @@
       text-transform: uppercase; letter-spacing: 0.05em;
     }
 
-    .trial-bpm-row { 
-      display: flex; align-items: center; gap: 8px; font-family: var(--font-mono); 
-      font-size: 0.9rem; color: var(--fg-muted); background: var(--bg-card); 
-      padding: 10px 20px; border-radius: var(--radius); margin-bottom: 20px; 
-      border: 1px solid var(--border);
+    .sqi-warning-dot {
+      width: 14px; height: 14px; border-radius: 50%;
+      background: var(--accent-red);
+      margin-bottom: 20px;
+      opacity: 0; transition: opacity 0.4s ease;
+      pointer-events: none;
+      box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
     }
-    .trial-bpm-row span.bpm-val { color: var(--fg); font-size: 1.1rem; }
+    .sqi-warning-dot.visible { opacity: 1; }
 
     .movement-warning {
       position: fixed; top: calc(env(safe-area-inset-top, 24px) + 10px);
@@ -289,77 +289,12 @@
   <!-- ========================================== -->
   <!-- PATH A: ECOLOGICAL MOMENTARY ASSESSMENT    -->
   <!-- ========================================== -->
+  <!-- ========================================== -->
+  <!-- PATH A: EMA (rendered from data by EMA module) -->
+  <!-- ========================================== -->
   <div class="screen" id="screen-ema">
     <h1 id="ema-title" style="text-align: center; margin-bottom: 24px; margin-top: 16px;">Check-In</h1>
-    
-    <!-- MORNING QUESTIONS -->
-    <div class="ema-section" id="ema-morning-section">
-      <div class="slider-group">
-        <div class="slider-header">
-          <label class="label">1. Hours of sleep last night</label>
-          <span class="slider-val-display" id="ema-sleep-val">7.0 hrs</span>
-        </div>
-        <input type="range" class="range-slider" id="ema-sleep" min="0" max="12" step="0.5" value="7" oninput="document.getElementById('ema-sleep-val').textContent = this.value + (this.value==12?'+ hrs':' hrs')">
-        <div class="slider-labels"><span>0</span><span>12+</span></div>
-      </div>
-
-      <div class="slider-group">
-        <label class="label">2. Quality of your sleep</label>
-        <input type="range" class="range-slider" id="ema-sleep-qual" min="0" max="100" value="50">
-        <div class="slider-labels"><span>Very Poor</span><span>Very Good</span></div>
-      </div>
-
-      <div class="slider-group">
-        <label class="label">3. How physically rested do you feel?</label>
-        <input type="range" class="range-slider" id="ema-rested" min="0" max="100" value="50">
-        <div class="slider-labels"><span>Exhausted</span><span>Fully Energized</span></div>
-      </div>
-    </div>
-
-    <!-- AFTERNOON / EVENING QUESTIONS -->
-    <div class="ema-section" id="ema-day-section">
-      <div class="slider-group">
-        <label class="label">1. Focus on internal physical sensations</label>
-        <input type="range" class="range-slider" id="ema-focus" min="0" max="100" value="50">
-        <div class="slider-labels"><span>Not at all</span><span>Highly focused</span></div>
-      </div>
-
-      <div class="slider-group">
-        <label class="label">2. Comfort of physical sensations</label>
-        <input type="range" class="range-slider" id="ema-comfort" min="0" max="100" value="50">
-        <div class="slider-labels"><span>Highly Distressing</span><span>Highly Comfortable</span></div>
-      </div>
-
-      <div class="slider-group">
-        <label class="label">3. Overall Mood (Valence)</label>
-        <input type="range" class="range-slider" id="ema-valence" min="0" max="100" value="50">
-        <div class="slider-labels"><span>Extremely Negative</span><span>Extremely Positive</span></div>
-      </div>
-
-      <div class="slider-group">
-        <label class="label">4. Energy Level (Arousal)</label>
-        <input type="range" class="range-slider" id="ema-arousal" min="0" max="100" value="50">
-        <div class="slider-labels"><span>Completely Drained</span><span>Highly Energized</span></div>
-      </div>
-
-      <div style="margin-bottom: 8px;">
-        <label class="label">5. Current Activity</label>
-        <div class="bubble-group" id="activity-bubbles">
-          <div class="bubble" data-val="resting">Sitting/Resting</div>
-          <div class="bubble" data-val="working">Working/Studying</div>
-          <div class="bubble" data-val="active">Physical Activity</div>
-          <div class="bubble" data-val="transit">In Transit</div>
-          <div class="bubble" data-val="other">Other</div>
-        </div>
-      </div>
-
-      <div class="slider-group">
-        <label class="label">6. Social Context</label>
-        <input type="range" class="range-slider" id="ema-social" min="0" max="1" step="1" value="0">
-        <div class="slider-labels"><span>Alone</span><span>With Others</span></div>
-      </div>
-    </div>
-
+    <div id="ema-items-container" style="width: 100%; max-width: 340px; margin: 0 auto;"></div>
     <div class="spacer"></div>
     <button class="btn btn-primary btn-block" id="submit-ema-btn" style="max-width:340px; margin: 0 auto;">Submit Check-In</button>
   </div>
@@ -380,7 +315,28 @@
         </div>
         <p style="margin-top: 16px;">Please use <strong>wired earphones</strong> or the <strong>built-in device speaker</strong> in a quiet room.</p>
       </div>
-      <button class="btn btn-primary btn-block" data-next-step="2">I'm using wired/built-in audio</button>
+      <button class="btn btn-primary btn-block" data-next-step="audio-check">I'm using wired/built-in audio</button>
+    </div>
+
+    <div class="onboarding-step" data-step="audio-check">
+      <div class="onboarding-content">
+        <h1>Sound Check</h1>
+        <p>Before we begin, we need to make sure you can hear the task tones.</p>
+        <div class="warning-box">
+          <p><strong>📱 iPhone users:</strong> Make sure the <strong>silent switch</strong> on the side of your phone is <strong>OFF</strong> (no orange showing).</p>
+          <p style="color: var(--fg-muted);">Also turn your volume up to a comfortable level.</p>
+        </div>
+        <p style="margin-top: 16px;">Tap the button below to play a test tone:</p>
+        <button class="btn btn-secondary btn-block" id="audio-test-btn" style="margin-top: 12px;">🔊 Play Test Tone</button>
+        <p id="audio-test-status" style="text-align: center; color: var(--fg-muted); min-height: 1.2em; margin-top: 12px;"></p>
+      </div>
+      <div id="audio-test-confirm" style="display:none;">
+        <p style="text-align: center; margin-bottom: 12px;">Did you hear the tone clearly?</p>
+        <div style="display: flex; gap: 12px;">
+          <button class="btn btn-secondary" id="audio-test-no" style="flex: 1;">No</button>
+          <button class="btn btn-primary" data-next-step="2" style="flex: 1;">Yes, continue</button>
+        </div>
+      </div>
     </div>
 
     <div class="onboarding-step" data-step="2">
@@ -497,12 +453,8 @@
       <span>Later ▶</span>
     </div>
 
-    <div class="trial-bpm-row">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent-red)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="trial-heart">
-        <path d="M22 12h-2l-2 5-4-10-2 5H2"/>
-      </svg>
-      <span>BPM: <span class="bpm-val" id="trial-bpm">--</span></span>
-    </div>
+    <!-- Passive SQI indicator: appears only when signal quality degrades -->
+    <div class="sqi-warning-dot" id="trial-sqi-dot" aria-hidden="true"></div>
 
     <button class="btn btn-primary btn-block" id="confirm-trial-btn" disabled style="max-width:320px;">
       Confirm Timing
@@ -569,6 +521,7 @@
     </button>
   </div>
 
+  <script src="epat-core.js"></script>
   <script>
     "use strict";
 
@@ -590,501 +543,200 @@
     })();
 
     // ============================================================
-    // WAKE LOCK CONTROLLER
+    // CORE MODULES — loaded from epat-core.js
     // ============================================================
-    const WakeLockCtrl = (function() {
-      let wakeLock = null;
-      return {
-        async request() {
-          try {
-            if ('wakeLock' in navigator) {
-              wakeLock = await navigator.wakeLock.request('screen');
-            }
-          } catch (err) { console.warn(`Wake Lock error: ${err.message}`); }
-        },
-        release() { if (wakeLock !== null) { wakeLock.release(); wakeLock = null; } }
+    const WakeLockCtrl   = window.ePATCore.WakeLockCtrl;
+    const WabpDetector   = window.ePATCore.WabpDetector;
+    const BeatDetector   = window.ePATCore.BeatDetector;
+    const AudioEngine    = window.ePATCore.AudioEngine;
+    const MotionDetector = window.ePATCore.MotionDetector;
+
+
+    // ============================================================
+    // EMA MODULE
+    // items are data, not code. add/remove/reword by editing EMA_ITEMS.
+    // render(sessionType) builds the screen. collectResponses() grabs values.
+    // ============================================================
+    const EMA = (function () {
+
+      // ---- scale helpers ----
+      // slider: 0–10 likert (most items) or custom range (sleep hours)
+      // choice: discrete single-select buttons
+      const ITEM = {
+        slider: (id, label, leftAnchor, rightAnchor, opts = {}) => ({
+          type: "slider", id, label, leftAnchor, rightAnchor,
+          min: opts.min ?? 0, max: opts.max ?? 10, step: opts.step ?? 1,
+          defaultVal: opts.defaultVal ?? 5, unit: opts.unit ?? "",
+        }),
+        choice: (id, label, options) => ({
+          type: "choice", id, label, options,
+        }),
       };
-    })();
 
-    // ============================================================
-    // WABP ONSET DETECTOR (Zong et al. 2003, adapted for camera PPG)
-    // ============================================================
-    const WabpDetector = (function () {
-      // Time constants (in seconds) — converted to samples on reset()
-      let SAMPLE_RATE, EYE_CLS_SAMPLES, SLP_WINDOW, NDP_SAMPLES, LPERIOD_SAMPLES, INIT_WINDOW;
-      const TM_FLOOR_RATIO = 0.05;
+      // ---- item definitions ----
+      // common block runs on every ema session.
+      // morning block gets prepended when session is morning.
+      //
+      // maia items are state-adapted ("right now") from the trait wordings.
+      // noticing + emotional awareness are the two subscales we're tracking.
+      // cite mehling state-maia adaptation in methods.
+      const EMA_ITEMS = {
 
-      let slopeBuffer = [], slopeEnergyBuffer = [];
-      let sampleIndex = 0, learning = true, learningComplete = false;
-      let T0 = 0, Ta = 0, T1 = 0, Tm = 0;
-      let lastOnsetIndex = -Infinity, noDetectTimer = 0, prevSample = 0;
+        morning: [
+          ITEM.slider("sleep_hours",  "How many hours did you sleep last night?",
+                      "0 hrs", "12+ hrs",
+                      { min: 0, max: 12, step: 0.5, defaultVal: 7, unit: " hrs" }),
+          ITEM.slider("sleep_quality", "How would you rate the quality of your sleep?",
+                      "very poor", "very good"),
+          ITEM.slider("restfulness",   "How rested do you feel right now?",
+                      "not rested at all", "fully rested"),
+        ],
 
-      function reset(sampleRate) {
-        SAMPLE_RATE      = sampleRate || 30;
-        EYE_CLS_SAMPLES  = Math.round(0.25  * SAMPLE_RATE);
-        SLP_WINDOW       = Math.max(2, Math.round(0.13 * SAMPLE_RATE));
-        NDP_SAMPLES      = Math.round(2.5   * SAMPLE_RATE);
-        LPERIOD_SAMPLES  = Math.round(8.0   * SAMPLE_RATE);
-        INIT_WINDOW      = Math.round(8.0   * SAMPLE_RATE);
-        slopeBuffer = []; slopeEnergyBuffer = [];
-        sampleIndex = 0; learning = true; learningComplete = false;
-        T0 = 0; Ta = 0; T1 = 0; Tm = 0;
-        lastOnsetIndex = -Infinity; noDetectTimer = 0; prevSample = 0;
+        common: [
+          // affect core
+          ITEM.slider("valence", "Right now, my mood is…",
+                      "very unpleasant", "very pleasant"),
+          ITEM.slider("arousal", "Right now, my energy level is…",
+                      "very low / calm", "very high / activated"),
+
+          // maia — noticing
+          ITEM.slider("maia_noticing", "Right now, I am aware of sensations in my body.",
+                      "not at all", "very much"),
+
+          // maia — emotional awareness
+          ITEM.slider("maia_emoawareness", "Right now, I notice how my body feels when I'm having an emotion.",
+                      "not at all", "very much"),
+
+          // context
+          ITEM.choice("ctx_activity", "What are you doing right now?",
+            ["resting", "working/studying", "socializing", "exercising", "eating", "commuting", "other"]),
+          ITEM.choice("ctx_social", "Who are you with?",
+            ["alone", "with 1 person", "small group", "in a crowd"]),
+          ITEM.choice("ctx_location", "Where are you?",
+            ["home", "work/school", "outside", "in transit", "other"]),
+        ],
+      };
+
+      // ---- render helpers ----
+      function buildSlider(item) {
+        const wrap = document.createElement("div");
+        wrap.className = "slider-group";
+        wrap.dataset.itemId = item.id;
+        wrap.dataset.itemType = "slider";
+
+        const header = document.createElement("div");
+        header.className = "slider-header";
+        const labelEl = document.createElement("label");
+        labelEl.className = "label";
+        labelEl.textContent = item.label;
+        const valEl = document.createElement("span");
+        valEl.className = "slider-val-display";
+        valEl.textContent = item.defaultVal + item.unit;
+        header.appendChild(labelEl); header.appendChild(valEl);
+
+        const input = document.createElement("input");
+        input.type = "range"; input.className = "range-slider";
+        input.min = item.min; input.max = item.max; input.step = item.step;
+        input.value = item.defaultVal;
+        input.dataset.fieldId = item.id;
+        input.addEventListener("input", () => { valEl.textContent = input.value + item.unit; });
+
+        const anchors = document.createElement("div");
+        anchors.className = "slider-labels";
+        const l = document.createElement("span"); l.textContent = item.leftAnchor;
+        const r = document.createElement("span"); r.textContent = item.rightAnchor;
+        anchors.appendChild(l); anchors.appendChild(r);
+
+        wrap.appendChild(header); wrap.appendChild(input); wrap.appendChild(anchors);
+        return wrap;
       }
 
-      function processSample(filteredSample) {
-        sampleIndex++;
-        const dy = Math.max(0, filteredSample - prevSample);
-        prevSample = filteredSample;
-        slopeBuffer.push(dy);
+      function buildChoice(item) {
+        // scoped wrapper — each choice group tracks its own selection
+        const wrap = document.createElement("div");
+        wrap.style.marginBottom = "24px";
+        wrap.dataset.itemId = item.id;
+        wrap.dataset.itemType = "choice";
 
-        let slopeEnergy = 0;
-        const startIdx = Math.max(0, slopeBuffer.length - SLP_WINDOW);
-        for (let i = startIdx; i < slopeBuffer.length; i++) slopeEnergy += slopeBuffer[i];
-        slopeEnergyBuffer.push(slopeEnergy);
+        const labelEl = document.createElement("label");
+        labelEl.className = "label";
+        labelEl.textContent = item.label;
+        wrap.appendChild(labelEl);
 
-        const MAX_BUF = SAMPLE_RATE * 10;
-        if (slopeBuffer.length > MAX_BUF) {
-          slopeBuffer = slopeBuffer.slice(-MAX_BUF);
-          slopeEnergyBuffer = slopeEnergyBuffer.slice(-MAX_BUF);
-        }
+        const group = document.createElement("div");
+        group.className = "bubble-group";
+        group.style.marginBottom = "8px";
 
-        if (learning) {
-          if (sampleIndex === INIT_WINDOW) {
-            let sum = 0;
-            for (let i = 0; i < slopeEnergyBuffer.length; i++) sum += slopeEnergyBuffer[i];
-            T0 = sum / slopeEnergyBuffer.length;
-            Ta = 3 * T0; Tm = T0 * TM_FLOOR_RATIO;
-          }
-          if (sampleIndex <= LPERIOD_SAMPLES) { T1 = 2 * T0; return { detected: false }; }
-          else { learning = false; learningComplete = true; T1 = Ta / 3; }
-        }
-        if (!learningComplete) return { detected: false };
-
-        if (sampleIndex - lastOnsetIndex < EYE_CLS_SAMPLES) return { detected: false };
-
-        if (slopeEnergy > T1) {
-          const seLen = slopeEnergyBuffer.length;
-          const halfEye = Math.floor(EYE_CLS_SAMPLES / 2);
-          if (seLen >= 3) {
-            const s0 = slopeEnergyBuffer[seLen - 3], s1 = slopeEnergyBuffer[seLen - 2], s2 = slopeEnergyBuffer[seLen - 1];
-            if (s1 >= s0 && s1 >= s2 && s1 > T1) {
-              let maxVal = s1, minVal = s1;
-              for (let j = seLen - 2; j >= Math.max(0, seLen - 2 - halfEye); j--) {
-                if (slopeEnergyBuffer[j] > maxVal) maxVal = slopeEnergyBuffer[j];
-                if (slopeEnergyBuffer[j] < minVal) minVal = slopeEnergyBuffer[j];
-              }
-              if (maxVal > minVal * 1.5 + 1e-6) {
-                const onsetThresh = maxVal * 0.02;
-                let onsetIdx = seLen - 2;
-                for (let j = seLen - 2; j >= Math.max(0, seLen - 2 - halfEye); j--) {
-                  if (j > 0 && (slopeEnergyBuffer[j] - slopeEnergyBuffer[j - 1]) < onsetThresh) { onsetIdx = j; break; }
-                }
-                Ta += (maxVal - Ta) / 10; T1 = Ta / 3;
-                lastOnsetIndex = sampleIndex; noDetectTimer = 0;
-                const framesAgo = (seLen - 1) - onsetIdx;
-                return { detected: true, onsetIndex: sampleIndex - framesAgo, peakEnergy: maxVal };
-              }
-            }
-          }
-        }
-
-        noDetectTimer++;
-        if (noDetectTimer > NDP_SAMPLES && Ta > Tm) { Ta -= Ta * 0.005; if (Ta < Tm) Ta = Tm; T1 = Ta / 3; }
-        return { detected: false };
-      }
-
-      return { reset, processSample };
-    })();
-
-    // ============================================================
-    // PPG BEAT DETECTOR (WABP onset, dynamic framerate, rVFC loop)
-    // ============================================================
-    const BeatDetector = (function () {
-      const IMAGE_SIZE = 40, BUFFER_SECONDS = 8;
-      const FINGER_BRIGHTNESS_MIN = 0.15, FINGER_BRIGHTNESS_MAX = 0.98, FINGER_RED_DOMINANCE = 0.38;
-
-      let videoEl, canvasEl, ctx;
-      let rawBuffer = [], timeBuffer = [], filteredBuffer = [];
-      let lastBeatTime = 0, startTime = 0, running = false, stream = null, animFrameId = null, fingerPresent = false;
-      let fingerDebounceCount = 0; const FINGER_DEBOUNCE_FRAMES = 8;
-      let instantPeriod = 0, averagePeriod = 0, recentPeriods = [];
-      const MAX_RECENT_PERIODS = 10;
-      let onBeat = null, onFingerChange = null, onPPGSample = null, onSqiUpdate = null, onDicroticReject = null;
-      let actualFPS = 30; // will be updated from camera settings
-
-      // --- Dicrotic notch rejection state ---
-      let prevAcceptedIbi = 0;
-      let prevAcceptedBeatTime = 0;
-      let dicroticRejectCount = 0;
-
-      // --- SQI (Signal Quality Index) via Perfusion Index ---
-      let lastSqiTime = 0, currentSqi = 0;
-      const SQI_INTERVAL_MS = 1000;
-      const SQI_WINDOW_S = 2;
-
-      // --- Frame timing diagnostics (VFR detection) ---
-      let lastFrameTime = 0, frameDeltaBuffer = [], frameDropCount = 0, totalFrames = 0;
-      // --- Brightness clipping diagnostics (ISP auto-exposure) ---
-      let clipHighCount = 0, clipLowCount = 0, lastBrightness = 0;
-
-      // Bandpass filter state — coefficients recomputed when actualFPS is known
-      let hpState = { x1: 0, y1: 0 }, lpState = { y1: 0 };
-      let HP_ALPHA, LP_ALPHA;
-      function computeFilterCoeffs(sr) {
-        HP_ALPHA = 1 / (1 + (2 * Math.PI * 0.67) / sr);
-        LP_ALPHA = (2 * Math.PI * 3.33 / sr) / (1 + (2 * Math.PI * 3.33) / sr);
-      }
-
-      function highpass(x) { const y = HP_ALPHA * (hpState.y1 + x - hpState.x1); hpState.x1 = x; hpState.y1 = y; return y; }
-      function lowpass(x) { const y = lpState.y1 + LP_ALPHA * (x - lpState.y1); lpState.y1 = y; return y; }
-      function bandpass(x) { return lowpass(highpass(x)); }
-      function resetFilters() { hpState = { x1: 0, y1: 0 }; lpState = { y1: 0 }; }
-
-      function getMedian(arr) {
-        if (arr.length === 0) return 0;
-        const sorted = [...arr].sort((a, b) => a - b);
-        const mid = Math.floor(sorted.length / 2);
-        return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-      }
-
-      function extractRedMean() {
-        ctx.drawImage(videoEl, 0, 0, IMAGE_SIZE, IMAGE_SIZE);
-        const pixels = ctx.getImageData(0, 0, IMAGE_SIZE, IMAGE_SIZE).data;
-        let rS = 0, gS = 0, bS = 0;
-        const count = pixels.length / 4;
-        for (let i = 0; i < pixels.length; i += 4) { rS += pixels[i]; gS += pixels[i + 1]; bS += pixels[i + 2]; }
-        const rM = rS / count / 255, gM = gS / count / 255, bM = bS / count / 255;
-        const brightness = (rM + gM + bM) / 3;
-        const redRatio = rM / (rM + gM + bM + 0.001);
-
-        const looksLikeFinger = brightness > FINGER_BRIGHTNESS_MIN && brightness < FINGER_BRIGHTNESS_MAX && redRatio > FINGER_RED_DOMINANCE;
-
-        lastBrightness = brightness;
-        if (brightness > 0.95) clipHighCount++;
-        else if (brightness < 0.05 && fingerPresent) clipLowCount++;
-
-        if (looksLikeFinger !== fingerPresent) {
-          fingerDebounceCount++;
-          if (fingerDebounceCount >= FINGER_DEBOUNCE_FRAMES) {
-            fingerPresent = looksLikeFinger; fingerDebounceCount = 0;
-            if (onFingerChange) onFingerChange(fingerPresent);
-          }
-        } else { fingerDebounceCount = 0; }
-        return rM;
-      }
-
-      function computeSqi() {
-        const windowSamples = Math.round(actualFPS * SQI_WINDOW_S);
-        if (rawBuffer.length < windowSamples) return 0;
-        const slice = rawBuffer.slice(-windowSamples);
-        let min = slice[0], max = slice[0], sum = 0;
-        for (let i = 0; i < slice.length; i++) {
-          if (slice[i] < min) min = slice[i];
-          if (slice[i] > max) max = slice[i];
-          sum += slice[i];
-        }
-        const mean = sum / slice.length;
-        if (mean < 0.001) return 0;
-        return (max - min) / mean;
-      }
-
-      function processFrame() {
-        if (!running) return;
-        const now = Date.now(), rawValue = extractRedMean(), filtered = bandpass(rawValue);
-        const BUFFER_SIZE = Math.round(actualFPS * BUFFER_SECONDS);
-
-        // --- Track actual inter-frame timing ---
-        totalFrames++;
-        if (lastFrameTime > 0) {
-          const dt = now - lastFrameTime;
-          frameDeltaBuffer.push(dt);
-          if (frameDeltaBuffer.length > 300) frameDeltaBuffer.shift(); 
-          const expectedInterval = 1000 / actualFPS;
-          if (dt > expectedInterval * 2) frameDropCount++;
-        }
-        lastFrameTime = now;
-
-        rawBuffer.push(rawValue); timeBuffer.push(now); filteredBuffer.push(filtered);
-        if (rawBuffer.length > BUFFER_SIZE) { rawBuffer.shift(); timeBuffer.shift(); filteredBuffer.shift(); }
-        if (onPPGSample) onPPGSample(filtered);
-
-        if (fingerPresent && (now - lastSqiTime > SQI_INTERVAL_MS)) {
-          currentSqi = computeSqi();
-          lastSqiTime = now;
-          if (onSqiUpdate) onSqiUpdate(currentSqi);
-        }
-
-        if (fingerPresent && (now - startTime > 2000)) {
-          const result = WabpDetector.processSample(filtered);
-          if (result.detected) {
-            const beatTime = now - (1000 / actualFPS);
-            const interval = beatTime - lastBeatTime;
-
-            if (lastBeatTime === 0 || interval > 2500) {
-              lastBeatTime = beatTime;
-              recentPeriods = [];
-              animFrameId = requestAnimationFrame(processFrame);
-              return;
-            }
-
-            if (interval < 350) {
-              animFrameId = requestAnimationFrame(processFrame);
-              return;
-            }
-
-            let isDicrotic = false;
-            const DICROTIC_MIN_PERIODS = 3;
-
-            if (recentPeriods.length >= DICROTIC_MIN_PERIODS) {
-              const medianMs = getMedian(recentPeriods) * 1000;
-              if (interval < medianMs * 0.60) {
-                isDicrotic = true;
-              }
-            }
-
-            if (isDicrotic) {
-              dicroticRejectCount++;
-              if (onDicroticReject) onDicroticReject({
-                time: beatTime,
-                rejectedIbi: interval,
-                expectedPeriod: getMedian(recentPeriods) * 1000 
-              });
-            } else {
-              prevAcceptedBeatTime = lastBeatTime;
-              prevAcceptedIbi = interval;
-              lastBeatTime = beatTime;
-              
-              instantPeriod = interval / 1000;
-              const instantBPM = 60 / instantPeriod;
-              
-              recentPeriods.push(instantPeriod);
-              if (recentPeriods.length > MAX_RECENT_PERIODS) recentPeriods.shift();
-              
-              averagePeriod = recentPeriods.reduce((a, b) => a + b, 0) / recentPeriods.length;
-              const averageBPM = 60 / averagePeriod;
-              
-              if (onBeat) onBeat({ instantBPM, averageBPM, instantPeriod, averagePeriod, time: beatTime });
-            }
-          }
-        }
-
-        animFrameId = requestAnimationFrame(processFrame);
-      }
-
-      async function startCamera() {
-        if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; }
-
-        try {
-          const tempStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-          tempStream.getTracks().forEach(t => t.stop());
-        } catch (e) { /* ignore */ }
-
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const cameras = devices.filter((d) => d.kind === "videoinput");
-        let torchWorking = false;
-
-        const ranked = [];
-        for (const cam of cameras) {
-          const label = (cam.label || "").toLowerCase();
-          if (label.includes("front") || label.includes("facetime")) continue;
-          if (label.includes("dual") || label.includes("triple")) continue;
-          if (label.includes("ultra")) continue;
-          if (label.includes("tele")) continue;
-          if (label.includes("back") || label === "") { ranked.unshift(cam); } else { ranked.push(cam); }
-        }
-        for (const cam of ranked) {
-          try {
-            if (stream) stream.getTracks().forEach((t) => t.stop());
-            stream = await navigator.mediaDevices.getUserMedia({
-              video: {
-                deviceId: { exact: cam.deviceId },
-                width: { ideal: IMAGE_SIZE }, height: { ideal: IMAGE_SIZE },
-                frameRate: { ideal: 120, min: 30 }
-              }
-            });
-            const track = stream.getVideoTracks()[0];
-            try {
-              await track.applyConstraints({ advanced: [{ torch: true }] });
-              torchWorking = true;
-              console.log(`[BeatDetector] Selected: "${cam.label}"`);
-              break;
-            } catch (err) { /* torch failed, try next */ }
-          } catch (err) { /* camera failed, try next */ }
-        }
-
-        if (!torchWorking && !stream) {
-          try {
-            stream = await navigator.mediaDevices.getUserMedia({
-              video: { facingMode: { exact: "environment" }, width: { ideal: IMAGE_SIZE }, height: { ideal: IMAGE_SIZE }, frameRate: { ideal: 120, min: 30 } }
-            });
-            const track = stream.getVideoTracks()[0];
-            try { await track.applyConstraints({ advanced: [{ torch: true }] }); } catch (e) {}
-          } catch(e) {
-            stream = await navigator.mediaDevices.getUserMedia({ video: true });
-          }
-        }
-
-        if (stream) {
-          const settings = stream.getVideoTracks()[0].getSettings();
-          actualFPS = settings.frameRate || 30;
-          console.log(`[BeatDetector] Camera running at ${actualFPS} fps`);
-        }
-
-        if (videoEl && stream) { videoEl.srcObject = stream; await videoEl.play(); }
-      }
-
-      async function stopCamera() {
-        if (stream) {
-          try { await stream.getVideoTracks()[0].applyConstraints({ advanced: [{ torch: false }] }); } catch (e) {}
-          stream.getTracks().forEach((t) => t.stop()); stream = null;
-        }
-        if (videoEl) videoEl.srcObject = null;
-      }
-
-      return {
-        async start({ video, canvas, onBeatCb, onFingerChangeCb, onPPGSampleCb, onSqiUpdateCb, onDicroticRejectCb }) {
-          videoEl = video; canvasEl = canvas; ctx = canvas.getContext("2d");
-          canvasEl.width = IMAGE_SIZE; canvasEl.height = IMAGE_SIZE;
-          onBeat = onBeatCb; onFingerChange = onFingerChangeCb; onPPGSample = onPPGSampleCb || null;
-          onSqiUpdate = onSqiUpdateCb || null; onDicroticReject = onDicroticRejectCb || null;
-          rawBuffer = []; timeBuffer = []; filteredBuffer = []; recentPeriods = [];
-          lastBeatTime = 0; fingerPresent = false; fingerDebounceCount = 0;
-          prevAcceptedIbi = 0; prevAcceptedBeatTime = 0; dicroticRejectCount = 0;
-          lastSqiTime = 0; currentSqi = 0;
-          lastFrameTime = 0; frameDeltaBuffer = []; frameDropCount = 0; totalFrames = 0;
-          clipHighCount = 0; clipLowCount = 0; lastBrightness = 0;
-          
-          await startCamera();
-          computeFilterCoeffs(actualFPS); resetFilters();
-          WabpDetector.reset(actualFPS);
-          startTime = Date.now(); running = true; processFrame();
-        },
-        setCallbacks({ onBeatCb, onFingerChangeCb, onPPGSampleCb, onSqiUpdateCb, onDicroticRejectCb }) {
-          onBeat = onBeatCb || null; onFingerChange = onFingerChangeCb || null; onPPGSample = onPPGSampleCb || null;
-          onSqiUpdate = onSqiUpdateCb || null; onDicroticReject = onDicroticRejectCb || null;
-        },
-        async stop() { running = false; if (animFrameId) cancelAnimationFrame(animFrameId); await stopCamera(); },
-        getActualFPS() { return actualFPS; },
-        getSqi() { return currentSqi; },
-        getDicroticRejectCount() { return dicroticRejectCount; },
-        getDiagnostics() {
-          const deltas = frameDeltaBuffer;
-          const meanDelta = deltas.length > 0 ? deltas.reduce((a, b) => a + b, 0) / deltas.length : 0;
-          const sortedDeltas = [...deltas].sort((a, b) => a - b);
-          const medianDelta = sortedDeltas.length > 0 ? sortedDeltas[Math.floor(sortedDeltas.length / 2)] : 0;
-          const effectiveFPS = medianDelta > 0 ? 1000 / medianDelta : actualFPS;
-          const q1 = sortedDeltas[Math.floor(sortedDeltas.length * 0.25)] || 0;
-          const q3 = sortedDeltas[Math.floor(sortedDeltas.length * 0.75)] || 0;
-          const fc = 1.2, fs = effectiveFPS;
-          const hpGD = (1 - HP_ALPHA) / (2 * Math.PI * fc * (1 - 2 * HP_ALPHA * Math.cos(2 * Math.PI * fc / fs) + HP_ALPHA * HP_ALPHA));
-          const lpGD = (1 - LP_ALPHA) / (2 * Math.PI * fc * (1 - 2 * (1 - LP_ALPHA) * Math.cos(2 * Math.PI * fc / fs) + (1 - LP_ALPHA) * (1 - LP_ALPHA)));
-          return {
-            negotiatedFPS: actualFPS,
-            effectiveFPS: Math.round(effectiveFPS * 10) / 10,
-            totalFrames,
-            frameDropCount,
-            frameDropRate: totalFrames > 0 ? Math.round(frameDropCount / totalFrames * 10000) / 100 : 0,
-            frameDeltaMedianMs: Math.round(medianDelta * 100) / 100,
-            frameDeltaIQRMs: Math.round((q3 - q1) * 100) / 100,
-            clipHighFrames: clipHighCount,
-            clipLowFrames: clipLowCount,
-            clipRate: totalFrames > 0 ? Math.round((clipHighCount + clipLowCount) / totalFrames * 10000) / 100 : 0,
-            estimatedGroupDelayMs: Math.round((hpGD + lpGD) * 1000 * 100) / 100,
+        item.options.forEach(opt => {
+          const b = document.createElement("div");
+          b.className = "bubble";
+          b.dataset.val = opt;
+          b.textContent = opt;
+          b.onclick = () => {
+            // scope the deselect to this group only — not every bubble on screen
+            group.querySelectorAll(".bubble").forEach(ob => ob.classList.remove("selected"));
+            b.classList.add("selected");
+            wrap.dataset.selectedVal = opt;
           };
-        },
-      };
-    })();
+          group.appendChild(b);
+        });
 
-    // ============================================================
-    // AUDIO ENGINE
-    // ============================================================
-    const AudioEngine = (function () {
-      let audioCtx, lowBuf;
-      function createBeep(freq, dur) {
-        const sr = 44100, len = sr * dur, buf = audioCtx.createBuffer(1, len, sr), d = buf.getChannelData(0);
-        for (let i = 0; i < len; i++) { const t = i / sr; d[i] = Math.sin(2 * Math.PI * freq * t) * Math.min(1, t * 50) * Math.min(1, (dur - t) * 50) * 0.5; }
-        return buf;
-      }
-      // Physiological floor: 350 ms ≈ 171 bpm. Tones closer than this cannot
-      // reflect distinct cardiac cycles and are suppressed.
-      const MIN_TONE_SPACING = 0.35;
-      let lastScheduledWhen = 0;
-      let dropLog = []; // {perfNow, requestedWhen, sinceLastMs, ctxState}
-      return {
-        init() {
-          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-          lowBuf = createBeep(440, 0.08);
-        },
-        scheduleAt(delaySec) {
-          if (!audioCtx) return null;
-          // Defensive resume: iOS suspends aggressively on backgrounding/notifications.
-          if (audioCtx.state === "suspended" || audioCtx.state === "interrupted") {
-            audioCtx.resume();
-          }
-          const when = audioCtx.currentTime + Math.max(0, delaySec);
-          const sinceLast = (when - lastScheduledWhen) * 1000;
-          if (when - lastScheduledWhen < MIN_TONE_SPACING) {
-            dropLog.push({ perfNow: performance.now(), requestedWhen: when, sinceLastMs: Math.round(sinceLast), ctxState: audioCtx.state });
-            return { dropped: true, sinceLastMs: sinceLast };
-          }
-          const s = audioCtx.createBufferSource();
-          s.buffer = lowBuf; s.connect(audioCtx.destination);
-          s.start(when);
-          lastScheduledWhen = when;
-          return { scheduledAt: when, perfNow: performance.now(), delaySec, ctxState: audioCtx.state };
-        },
-        resetSchedulerState() { lastScheduledWhen = 0; },
-        getDropLog() { return dropLog.slice(); },
-        clearDropLog() { dropLog = []; },
-        playLow() {
-          if (!audioCtx) return;
-          if (audioCtx.state === "suspended" || audioCtx.state === "interrupted") audioCtx.resume();
-          const s = audioCtx.createBufferSource(); s.buffer = lowBuf; s.connect(audioCtx.destination); s.start();
-        },
-        resume() { if (audioCtx && (audioCtx.state === "suspended" || audioCtx.state === "interrupted")) audioCtx.resume(); },
-        getState() { return audioCtx ? audioCtx.state : "uninitialized"; },
-        getContext() { return audioCtx; },
-      };
-    })();
-
-    // ============================================================
-    // MOTION DETECTOR 
-    // ============================================================
-    const MotionDetector = (function () {
-      const MOVEMENT_THRESHOLD = 0.2;
-      let accBuffer = [], lastAcc = { x: 0, y: 0, z: 0 };
-      let listening = false, permitted = false, onMovementWarning = null;
-
-      function handleMotion(e) {
-        const a = e.accelerationIncludingGravity || e.acceleration;
-        if (!a) return;
-        const mag = Math.sqrt(Math.pow(a.x - lastAcc.x, 2) + Math.pow(a.y - lastAcc.y, 2) + Math.pow(a.z - lastAcc.z, 2));
-        accBuffer.push(mag); lastAcc = { x: a.x, y: a.y, z: a.z };
+        wrap.appendChild(group);
+        return wrap;
       }
 
-      return {
-        async requestPermission() {
-          if (typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function") {
-            try { const perm = await DeviceMotionEvent.requestPermission(); permitted = (perm === "granted"); } catch (e) { permitted = false; }
-          } else { permitted = true; }
-          return permitted;
-        },
-        start(warningCb) {
-          if (!permitted) return;
-          onMovementWarning = warningCb || null; accBuffer = []; lastAcc = { x: 0, y: 0, z: 0 };
-          window.addEventListener("devicemotion", handleMotion); listening = true;
-        },
-        stop() { if (listening) { window.removeEventListener("devicemotion", handleMotion); listening = false; } },
-        checkMovement() {
-          if (accBuffer.length === 0) return false;
-          const mean = accBuffer.reduce((a, b) => a + b, 0) / accBuffer.length;
-          accBuffer = [];
-          const tooMuch = mean > MOVEMENT_THRESHOLD;
-          if (tooMuch && onMovementWarning) onMovementWarning();
-          return tooMuch;
-        },
-      };
+      // ---- public api ----
+      function render(sessionType) {
+        const container = document.getElementById("ema-items-container");
+        container.innerHTML = "";
+
+        // figure out which items to show
+        const isMorning = sessionType === "emamorning";
+        const items = isMorning
+          ? [...EMA_ITEMS.morning, ...EMA_ITEMS.common]
+          : [...EMA_ITEMS.common];
+
+        // set title based on session
+        const titleEl = document.getElementById("ema-title");
+        if (isMorning) titleEl.textContent = "Good Morning";
+        else if (sessionType === "emaevening") titleEl.textContent = "Good Evening";
+        else titleEl.textContent = "Check-In";
+
+        items.forEach(item => {
+          if (item.type === "slider") container.appendChild(buildSlider(item));
+          else if (item.type === "choice") container.appendChild(buildChoice(item));
+        });
+      }
+
+      function collectResponses(sessionType) {
+        // walk the dom and grab values by item id.
+        // choice items that weren't tapped get logged as "unanswered".
+        const isMorning = sessionType === "emamorning";
+        const items = isMorning
+          ? [...EMA_ITEMS.morning, ...EMA_ITEMS.common]
+          : [...EMA_ITEMS.common];
+
+        const responses = {
+          type: "ema_response",
+          session: isMorning ? "morning" : (sessionType === "emaevening" ? "evening" : "afternoon"),
+          submittedAt: new Date().toISOString(),
+        };
+
+        items.forEach(item => {
+          if (item.type === "slider") {
+            const el = document.querySelector(`[data-field-id="${item.id}"]`);
+            responses[item.id] = el ? parseFloat(el.value) : null;
+          } else if (item.type === "choice") {
+            const wrap = document.querySelector(`[data-item-id="${item.id}"]`);
+            responses[item.id] = (wrap && wrap.dataset.selectedVal) || "unanswered";
+          }
+        });
+
+        return responses;
+      }
+
+      // expose schemas too — useful for the R pipeline and for methods writeup
+      return { render, collectResponses, EMA_ITEMS };
     })();
 
     // ============================================================
@@ -1092,9 +744,6 @@
     // ============================================================
     const App = (function () {
       const NUM_TRIALS = 20, NUM_PRACTICES = 2, BODY_MAP_EVERY = 4, KNOB_VALUE_RANGE = 1.0, BASELINE_DURATION_S = 120;
-      
-      let isMorningEMA = false;
-      let selectedActivity = null;
 
       function collectDeviceMetadata() {
         const ua = navigator.userAgent;
@@ -1144,6 +793,8 @@
       let currentInstantPeriod = 0, currentAveragePeriod = 0, baselineStartTime = 0, baselineTimer = null, baselineBPMs = [], waveBuffer = [];
       const screens = {}, WAVE_MAX = 180;
       let dialEl, dialAngle = 0, dialDragging = false, dialCx = 0, dialCy = 0, lastAngle = 0;
+      // which ema variant this session is running (set by url param in init)
+      let currentEmaSessionType = null;
 
       function show(id) {
         document.querySelectorAll(".finger-overlay").forEach((el) => el.classList.remove("visible"));
@@ -1336,6 +987,9 @@
         trialLastIbi = 0; trialCleanBeats = 0; trialFlaggedBeats = 0; trialIbiFlags = [];
         trialSqiTimeSeries = []; trialSqiBadSeconds = 0; trialLastSqiCheckTime = 0;
         trialDicroticRejections = [];
+        // Clear any lingering SQI warning from previous trial
+        const _sqiDot = document.getElementById("trial-sqi-dot");
+        if (_sqiDot) _sqiDot.classList.remove("visible");
         currentInstantPeriod = 0; currentAveragePeriod = 0;
         currentKnobValue = (Math.random() * 2 - 1) * KNOB_VALUE_RANGE;
         trialInitialKnob = currentKnobValue;
@@ -1358,7 +1012,6 @@
           // Silent IBI plausibility logging
           processIbi(beat);
           
-          document.getElementById("trial-bpm").textContent = Math.round(beat.averageBPM);
           const dNow = delay < 0 ? currentInstantPeriod + delay : delay;
           if (dNow > 0 && dNow < 3) {
             const timing = AudioEngine.scheduleAt(dNow);
@@ -1388,7 +1041,10 @@
           }
         };
 
-        // Silent SQI logging callback
+        // Silent SQI logging callback + passive visual warning
+        const SQI_DOT_SHOW = 0.004;   // dot appears below this
+        const SQI_DOT_HIDE = 0.007;   // dot disappears above this (hysteresis)
+        const sqiDotEl = document.getElementById("trial-sqi-dot");
         const sqiCb = (sqi) => {
           const now = Date.now();
           if (trialLastSqiCheckTime > 0 && sqi < SQI_WARN) {
@@ -1396,6 +1052,12 @@
           }
           trialLastSqiCheckTime = now;
           trialSqiTimeSeries.push({ time: now, sqi: Math.round(sqi * 100000) / 100000 });
+
+          // Passive peripheral warning — no numbers, no text, just a dot
+          if (sqiDotEl) {
+            if (sqi < SQI_DOT_SHOW) sqiDotEl.classList.add("visible");
+            else if (sqi > SQI_DOT_HIDE) sqiDotEl.classList.remove("visible");
+          }
         };
 
         // Silent dicrotic rejection logging callback
@@ -1466,20 +1128,9 @@
 }
 
       function submitEMA() {
-        const data = { type: "ema_response", session: isMorningEMA ? "morning" : "day" };
-        if (isMorningEMA) {
-          data.sleepHours = document.getElementById("ema-sleep").value;
-          data.sleepQuality = document.getElementById("ema-sleep-qual").value;
-          data.feelingRested = document.getElementById("ema-rested").value;
-        } else {
-          data.focusInternal = document.getElementById("ema-focus").value;
-          data.sensationsComfort = document.getElementById("ema-comfort").value;
-          data.valence = document.getElementById("ema-valence").value;
-          data.arousal = document.getElementById("ema-arousal").value;
-          data.activity = selectedActivity || "unanswered";
-          data.socialContext = document.getElementById("ema-social").value === "1" ? "with_others" : "alone";
-        }
-        sessionData.data.push(data);
+        // module handles item collection — just take what it gives us and log
+        const responses = EMA.collectResponses(currentEmaSessionType);
+        sessionData.data.push(responses);
         show("screen-end");
       }
 
@@ -1487,15 +1138,6 @@
         init() {
           screens.active = document.getElementById("screen-participant");
           initDial(); AudioEngine.init();
-
-          // Bubble selection logic
-          document.querySelectorAll('.bubble').forEach(b => {
-            b.onclick = () => {
-              document.querySelectorAll('.bubble').forEach(ob => ob.classList.remove('selected'));
-              b.classList.add('selected');
-              selectedActivity = b.dataset.val;
-            };
-          });
 
           // URL Parsing logic
           const urlParams = new URLSearchParams(window.location.search);
@@ -1521,17 +1163,15 @@
 
           if (sessionType.startsWith('ema')) {
             sessionData.taskType = "EMA";
-            isMorningEMA = sessionType === 'emamorning';
-            
-            if (isMorningEMA) {
+            currentEmaSessionType = sessionType;
+
+            // subtitle on the participant screen — ema title itself is set by EMA.render
+            if (sessionType === 'emamorning') {
               document.getElementById('task-subtitle').textContent = "Morning Check-In";
-              document.getElementById('ema-title').textContent = "Good Morning";
             } else if (sessionType === 'emaevening') {
               document.getElementById('task-subtitle').textContent = "Evening Check-In";
-              document.getElementById('ema-title').textContent = "Good Evening";
             } else {
               document.getElementById('task-subtitle').textContent = "Afternoon Check-In";
-              document.getElementById('ema-title').textContent = "Check-In";
             }
           }
 
@@ -1544,12 +1184,9 @@
             AudioEngine.resume();
 
             if (sessionData.taskType === "EMA") {
+              // render items from data, then show screen
+              EMA.render(currentEmaSessionType);
               show("screen-ema");
-              if (isMorningEMA) {
-                document.getElementById("ema-morning-section").classList.add("active");
-              } else {
-                document.getElementById("ema-day-section").classList.add("active");
-              }
             } else {
               sessionData.taskType = "PAT";
               show("screen-onboarding");
@@ -1565,6 +1202,29 @@
               else { document.querySelectorAll(".onboarding-step").forEach(s => s.classList.remove("active")); document.querySelector(`.onboarding-step[data-step="${n}"]`).classList.add("active"); }
             };
           });
+
+          // Audio test (silent-mode functional check)
+          const audioTestBtn = document.getElementById("audio-test-btn");
+          const audioTestConfirm = document.getElementById("audio-test-confirm");
+          const audioTestStatus = document.getElementById("audio-test-status");
+          const audioTestNo = document.getElementById("audio-test-no");
+          if (audioTestBtn) {
+            audioTestBtn.onclick = () => {
+              AudioEngine.resume();
+              // Play three clearly-audible tones so a single dropped sample can't give a false negative
+              AudioEngine.playLow();
+              setTimeout(() => AudioEngine.playLow(), 400);
+              setTimeout(() => AudioEngine.playLow(), 800);
+              audioTestStatus.textContent = "Tone played. Did you hear it?";
+              audioTestConfirm.style.display = "block";
+            };
+          }
+          if (audioTestNo) {
+            audioTestNo.onclick = () => {
+              audioTestStatus.innerHTML = "<strong style='color:var(--accent-yellow)'>On iPhone:</strong> flip the silent switch (side of phone) so no orange shows. <strong>On Android:</strong> raise media volume. Then tap Play Test Tone again.";
+              audioTestConfirm.style.display = "none";
+            };
+          }
 
           document.getElementById("confirm-trial-btn").onclick = () => { AudioEngine.resume(); confirmTrial(); };
           document.getElementById("submit-ema-btn").onclick = submitEMA;
