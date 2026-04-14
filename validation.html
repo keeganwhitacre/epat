@@ -694,21 +694,27 @@
             }
             
             if (knobEnabled) {
-              const delay = (currentAveragePeriodForKnob / 2) * knobValue;
-              const dNow = delay < 0 ? currentInstantPeriodForKnob + delay : delay;
-              if (dNow > 0 && dNow < 3) {
-                AudioEngine.resume();
-                const scheduleTime = performance.now();
-                setTimeout(() => { AudioEngine.play(); }, dNow * 1000);
-                knobToneTimings.push({
-                  beatTime: beat.time,
-                  knobValue: knobValue,
-                  intendedDelay: dNow,
-                  scheduledAt: scheduleTime,
-                  averagePeriod: currentAveragePeriodForKnob,
-                });
-              }
-            }
+  const delay = (currentAveragePeriodForKnob / 2) * knobValue;
+  const dNow = delay < 0 ? currentInstantPeriodForKnob + delay : delay;
+  
+  if (dNow > 0 && dNow < 3) {
+    // Let the AudioEngine handle the delay and the refractory check natively
+    const timing = AudioEngine.scheduleAt(dNow);
+    
+    if (timing) {
+      knobToneTimings.push({
+        beatTime: beat.time,
+        knobValue: knobValue,
+        intendedDelay: dNow,
+        scheduledAt: timing.scheduledAt,
+        perfNow: timing.perfNow,
+        averagePeriod: currentAveragePeriodForKnob,
+        dropped: timing.dropped || false // Flag if the doublet killer caught it
+      });
+    }
+  }
+}
+
             
             ui.fingerDot.style.transform = 'scale(1.5)';
             setTimeout(() => ui.fingerDot.style.transform = 'scale(1)', 100);
