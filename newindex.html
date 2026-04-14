@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <link rel="manifest" href="manifest.json">
+  <title>Interoception Study</title>
+  <style>
+    /* --- Premium, Tactile OLED Design Tokens --- */
+    :root {
+      --bg: #000000; /* Pure OLED Black */
+      --bg-surface: #121214; /* Deep warm charcoal */
+      --bg-elevated: #1c1c1f;
+      --border: #27272a;
+      --fg: #f4f4f5; /* Zinc 50 */
+      --fg-muted: #a1a1aa; /* Zinc 400 */
+      
+      /* Warm, film-like accents instead of clinical blues */
+      --accent: #f59e0b; /* Amber 500 */
+      --accent-hover: #d97706; /* Amber 600 */
+      --accent-red: #ef4444; 
+      --accent-green: #10b981;
+      
+      --radius: 16px; /* Softer, friendlier corners */
+      --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    
+    html, body {
+      height: 100%; width: 100%;
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--fg);
+      overflow: hidden;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .screen {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      padding: calc(env(safe-area-inset-top, 24px) + 24px) 24px calc(env(safe-area-inset-bottom, 24px) + 24px);
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+      overflow-y: auto;
+    }
+    .screen.active { opacity: 1; pointer-events: all; }
+
+    /* Typography */
+    h1 { font-size: 1.75rem; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 8px; color: var(--fg); }
+    h2 { font-size: 1.1rem; font-weight: 400; color: var(--fg-muted); margin-bottom: 32px; letter-spacing: -0.01em; }
+    p { font-size: 1.05rem; line-height: 1.5; color: var(--fg-muted); margin-bottom: 24px; font-weight: 400; }
+    .label { font-size: 0.8rem; font-weight: 600; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; display: block; }
+
+    /* Tactile Buttons */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 18px 28px; border-radius: var(--radius);
+      border: none; cursor: pointer;
+      font-family: var(--font); font-size: 1.05rem; font-weight: 600; letter-spacing: -0.01em;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .btn:active { transform: scale(0.97); }
+    
+    .btn-primary { 
+      background: var(--accent); color: #000; 
+      box-shadow: 0 4px 14px rgba(245, 158, 11, 0.2);
+    }
+    .btn-primary:active { background: var(--accent-hover); box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3); }
+    .btn-primary:disabled { opacity: 0.3; pointer-events: none; box-shadow: none; }
+    
+    .btn-secondary {
+      background: var(--bg-surface); color: var(--fg);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:active { background: var(--bg-elevated); }
+    
+    .btn-block { width: 100%; max-width: 340px; margin-left: auto; margin-right: auto; }
+    .spacer { flex: 1; min-height: 24px; }
+
+    /* Inputs */
+    .input-group { width: 100%; max-width: 340px; margin: 0 auto 32px; text-align: left; }
+    .input-group input {
+      width: 100%; padding: 18px;
+      background: var(--bg-surface); border: 1px solid var(--border);
+      border-radius: var(--radius); color: var(--fg);
+      font-family: var(--font); font-size: 1.1rem; outline: none;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .input-group input:focus { border-color: var(--accent); background: var(--bg-elevated); }
+
+    /* ---- EMA Specific Styles (The "One Thing" layout) ---- */
+    #screen-ema { justify-content: space-between; }
+    .ema-progress { font-family: var(--font-mono); font-size: 0.8rem; color: var(--fg-muted); text-align: center; margin-bottom: 24px; letter-spacing: 0.05em; }
+    
+    .ema-item-container {
+      flex: 1; display: flex; flex-direction: column; justify-content: center;
+      opacity: 1; transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+    .ema-item-container.fade-out { opacity: 0; transform: translateY(-10px); }
+    .ema-item-container.fade-in { opacity: 0; transform: translateY(10px); }
+    
+    .ema-question { font-size: 1.5rem; font-weight: 500; color: var(--fg); line-height: 1.3; text-align: center; margin-bottom: 48px; letter-spacing: -0.02em; }
+
+    /* Heavy, tactile slider */
+    .slider-group { width: 100%; max-width: 340px; margin: 0 auto; }
+    .slider-val-display { font-family: var(--font-mono); font-size: 2.5rem; font-weight: 500; color: var(--accent); text-align: center; margin-bottom: 24px; }
+    
+    .range-slider {
+      -webkit-appearance: none; width: 100%; height: 8px;
+      border-radius: 4px; outline: none; background: var(--bg-elevated);
+      position: relative; margin-bottom: 20px;
+    }
+    .range-slider::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none;
+      width: 36px; height: 36px; border-radius: 50%;
+      background: var(--fg);
+      cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+    }
+    .slider-labels { display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 500; color: var(--fg-muted); }
+
+    /* Tactile choice bubbles */
+    .bubble-group { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 340px; margin: 0 auto; }
+    .bubble {
+      padding: 18px 20px; border-radius: 14px; border: 1px solid var(--border);
+      background: var(--bg-surface); color: var(--fg); font-size: 1.05rem; font-weight: 500;
+      cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); text-align: center;
+    }
+    .bubble:active { transform: scale(0.98); }
+    .bubble.selected { 
+      background: var(--accent); border-color: var(--accent); color: #000; 
+      box-shadow: 0 4px 14px rgba(245, 158, 11, 0.2); 
+    }
+
+    /* ---- Baseline ---- */
+    #screen-baseline { align-items: center; justify-content: center; gap: 40px; }
+    .baseline-header { text-align: center; }
+    
+    .progress-ring {
+      width: 160px; height: 160px; position: relative;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto;
+    }
+    .progress-ring svg { position: absolute; inset: 0; transform: rotate(-90deg); z-index: 2; width: 100%; height: 100%; }
+    .progress-ring circle { fill: none; stroke-width: 4; }
+    .progress-ring .track { stroke: var(--bg-elevated); }
+    .progress-ring .fill {
+      stroke: var(--accent); stroke-dasharray: 471; stroke-dashoffset: 471;
+      stroke-linecap: round; transition: stroke-dashoffset 1s linear;
+    }
+    
+    .baseline-bpm-box { text-align: center; z-index: 3; }
+    .baseline-bpm-number { font-size: 3.5rem; font-weight: 500; font-family: var(--font-mono); color: var(--fg); line-height: 1; letter-spacing: -0.04em; }
+    .baseline-bpm-label { font-size: 0.8rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.1em; margin-top: 4px; }
+
+    .baseline-status { font-size: 1rem; color: var(--fg-muted); text-align: center; min-height: 1.5em; transition: color 0.3s; margin-top: 24px; font-weight: 500; }
+
+    /* ---- PAT Trial (Physical Dial) ---- */
+    #screen-trial { align-items: center; justify-content: center; }
+    .trial-header { text-align: center; position: absolute; top: calc(env(safe-area-inset-top, 24px) + 24px); width: 100%; }
+    .trial-instruction { font-size: 1.1rem; color: var(--fg-muted); text-align: center; max-width: 300px; line-height: 1.4; margin-bottom: 40px; font-weight: 400; }
+
+    .rotary-dial-wrapper {
+      position: relative; width: 280px; height: 280px; margin: 0 auto 40px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 50%;
+      user-select: none;
+    }
+    
+    .rotary-dial-ticks { position: absolute; inset: 0; pointer-events: none; border-radius: 50%; z-index: 1; }
+    .dial-tick {
+      position: absolute; width: 2px; height: 6px;
+      background: var(--border);
+      top: 8px; left: 50%; transform-origin: 50% 132px;
+      margin-left: -1px; transition: background 0.2s;
+    }
+
+    /* Physical, tactile knob styling */
+    .rotary-dial {
+      width: 160px; height: 160px; border-radius: 50%;
+      background: linear-gradient(145deg, #1f1f23, #121214);
+      box-shadow: 
+        8px 8px 16px rgba(0,0,0,0.8), 
+        -4px -4px 12px rgba(255,255,255,0.03),
+        inset 0 2px 4px rgba(255,255,255,0.05);
+      border: 1px solid var(--border);
+      position: relative; touch-action: none; cursor: grab;
+      z-index: 2; display: flex; align-items: center; justify-content: center;
+    }
+    .rotary-dial:active { cursor: grabbing; background: linear-gradient(145deg, #1a1a1d, #0f0f11); }
+    
+    .rotary-dial-indicator {
+      position: absolute; top: 12px; left: 50%;
+      width: 4px; height: 24px; background: var(--accent);
+      border-radius: 2px; transform: translateX(-50%);
+      box-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
+    }
+
+    .dial-labels {
+      display: flex; justify-content: space-between; width: 100%; max-width: 280px;
+      margin: 0 auto; font-size: 0.85rem; font-weight: 600; color: var(--fg-muted);
+      text-transform: uppercase; letter-spacing: 0.08em;
+    }
+
+    /* Active SQI Camera Warning */
+    .sqi-camera-warning {
+      position: fixed; top: calc(env(safe-area-inset-top, 24px) + 80px);
+      left: 50%; transform: translateX(-50%) scale(0.9);
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+      opacity: 0; pointer-events: none; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 50;
+    }
+    .sqi-camera-warning.visible { opacity: 1; transform: translateX(-50%) scale(1); }
+    
+    .sqi-preview-circle {
+      width: 70px; height: 70px; border-radius: 50%;
+      background: #000; border: 2px solid var(--accent-red);
+      object-fit: cover; box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
+    }
+    .sqi-warning-text { font-size: 0.9rem; font-weight: 500; color: var(--accent-red); text-transform: uppercase; letter-spacing: 0.05em; }
+
+    .movement-warning {
+      position: fixed; top: calc(env(safe-area-inset-top, 24px) + 16px);
+      left: 50%; transform: translateX(-50%) translateY(-20px);
+      background: var(--bg-elevated); border: 1px solid var(--border); color: var(--fg);
+      padding: 10px 20px; border-radius: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      font-size: 0.9rem; font-weight: 500;
+      z-index: 50; pointer-events: none;
+      opacity: 0; transition: all 0.3s ease;
+    }
+    .movement-warning.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ---- Finger overlay ---- */
+    .finger-overlay {
+      position: fixed; inset: 0; z-index: 100;
+      background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px;
+      opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+    }
+    .finger-overlay.visible { opacity: 1; pointer-events: all; }
+
+    /* ---- Body map ---- */
+    .body-map-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; max-width: 340px; margin: 0 auto; }
+    .body-part {
+      padding: 16px; border-radius: 12px;
+      background: var(--bg-surface); border: 1px solid var(--border);
+      color: var(--fg); font-size: 1rem; cursor: pointer; text-align: center; font-weight: 500;
+      transition: all 0.2s;
+    }
+    .body-part.selected { background: var(--accent); border-color: var(--accent); color: #000; }
+
+    /* ---- Hidden elements ---- */
+    #video-feed, #sampling-canvas { position: fixed; top: -9999px; left: -9999px; width: 40px; height: 40px; opacity: 0; pointer-events: none; }
+  </style>
+</head>
+<body>
+
+  <video id="video-feed" playsinline muted></video>
+  <canvas id="sampling-canvas"></canvas>
+
+  <!-- 1. Participant ID -->
+  <div class="screen active" id="screen-participant">
+    <div style="flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 24px;">
+        <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+      </svg>
+      <h1>Interoception Study</h1>
+      <h2 id="task-subtitle">Phase Adjustment Task</h2>
+      
+      <div class="input-group" style="margin-top: 24px;">
+        <label class="label" for="participant-input">Participant ID</label>
+        <input type="text" id="participant-input" placeholder="e.g. 42" autocomplete="off">
+      </div>
+    </div>
+    <button class="btn btn-primary btn-block" id="start-btn">Begin Session</button>
+  </div>
+
+  <!-- 2. Onboarding (Cleaned up) -->
+  <div class="screen" id="screen-onboarding">
+    <div class="ema-item-container" id="onboarding-container">
+      <!-- Content injected by JS -->
+    </div>
+    <div style="margin-top: 32px;">
+      <button class="btn btn-primary btn-block" id="onboarding-next-btn">Continue</button>
+    </div>
+  </div>
+
+  <!-- 3. EMA (One Thing Layout) -->
+  <div class="screen" id="screen-ema">
+    <div class="ema-progress" id="ema-progress-text">1 OF 5</div>
+    
+    <div class="ema-item-container" id="ema-single-container">
+      <!-- Injected by JS -->
+    </div>
+    
+    <div style="margin-top: 40px;">
+      <button class="btn btn-primary btn-block" id="ema-next-btn" disabled>Next</button>
+    </div>
+  </div>
+
+  <!-- 4. Baseline -->
+  <div class="screen" id="screen-baseline">
+    <div class="finger-overlay" id="baseline-finger-overlay">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--fg)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="5" y="2" width="14" height="20" rx="4" ry="4"/>
+        <circle cx="12" cy="8" r="3" fill="var(--accent-red)" stroke="none"/> 
+      </svg>
+      <p style="text-align: center; color: #fff; font-size: 1.1rem; max-width: 260px;">Place your finger gently over the rear camera and flash.</p>
+    </div>
+
+    <div class="baseline-header">
+      <h1>Calibration</h1>
+      <p class="label">Keep your finger completely still</p>
+    </div>
+
+    <div class="progress-ring">
+      <svg viewBox="0 0 160 160">
+        <circle class="track" cx="80" cy="80" r="75"/>
+        <circle class="fill" id="baseline-progress-circle" cx="80" cy="80" r="75"/>
+      </svg>
+      <div class="baseline-bpm-box">
+        <div class="baseline-bpm-number" id="baseline-bpm">--</div>
+        <div class="baseline-bpm-label">BPM</div>
+      </div>
+    </div>
+
+    <p class="baseline-status" id="baseline-status">Awaiting contact...</p>
+  </div>
+
+  <!-- 5. Trial -->
+  <div class="screen" id="screen-trial">
+    <div class="finger-overlay" id="trial-finger-overlay">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--fg)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="5" y="2" width="14" height="20" rx="4" ry="4"/>
+        <circle cx="12" cy="8" r="3" fill="var(--accent-red)" stroke="none"/> 
+      </svg>
+      <p style="text-align: center; color: #fff; font-size: 1.1rem;">Please return your finger to the camera.</p>
+    </div>
+
+    <div class="movement-warning" id="trial-movement-warning">
+      Keep still
+    </div>
+
+    <!-- The new visual SQI feedback -->
+    <div class="sqi-camera-warning" id="trial-sqi-camera-warning">
+      <canvas id="trial-camera-preview" class="sqi-preview-circle"></canvas>
+      <span class="sqi-warning-text">Make the circle red</span>
+    </div>
+
+    <div class="trial-header">
+      <p class="label" id="trial-label" style="color: var(--accent);">Trial 1</p>
+    </div>
+
+    <div style="flex: 1; display: flex; flex-direction: column; justify-content: center; width: 100%;">
+      <p class="trial-instruction">Rotate the dial until the tone precisely aligns with your heartbeat.</p>
+
+      <div class="rotary-dial-wrapper">
+        <div class="rotary-dial-ticks" id="rotary-dial-ticks"></div>
+        <div class="rotary-dial" id="rotary-dial">
+          <div class="rotary-dial-indicator"></div>
+        </div>
+      </div>
+      
+      <div class="dial-labels">
+        <span>◀ Earlier</span>
+        <span>Later ▶</span>
+      </div>
+    </div>
+
+    <button class="btn btn-primary btn-block" id="confirm-trial-btn" disabled style="margin-top: 40px;">
+      Confirm Timing
+    </button>
+  </div>
+
+  <!-- 6. Body map -->
+  <div class="screen" id="screen-bodymap">
+    <div style="flex: 1; display: flex; flex-direction: column; justify-content: center;">
+      <h1 style="text-align:center;">Sensation</h1>
+      <p style="text-align:center; color:var(--fg-muted); margin-bottom: 32px;">
+        Where did you primarily feel your heartbeat?
+      </p>
+      
+      <button class="btn btn-secondary btn-block" id="nowhere-btn" style="margin-bottom: 16px; border-radius: 12px; font-weight: 500;">Did not feel it</button>
+      
+      <div class="body-map-grid">
+        <div class="body-part" data-value="1" data-name="Chest">Chest</div>
+        <div class="body-part" data-value="2" data-name="Fingers">Fingers</div>
+        <div class="body-part" data-value="3" data-name="Neck">Neck</div>
+        <div class="body-part" data-value="4" data-name="Ears">Ears</div>
+        <div class="body-part" data-value="5" data-name="Abdomen">Abdomen</div>
+        <div class="body-part" data-value="6" data-name="Legs">Legs</div>
+        <div class="body-part" data-value="7" data-name="Head">Head</div>
+      </div>
+    </div>
+    
+    <button class="btn btn-primary btn-block" id="confirm-bodymap-btn" disabled style="margin-top: 32px;">Confirm Location</button>
+  </div>
+
+  <!-- 7. End -->
+  <div class="screen" id="screen-end">
+    <div style="flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 24px;">
+        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+        <polyline points="22 4 12 14.01 9 11.01"/>
+      </svg>
+      <h1>Session Complete</h1>
+      <p>Thank you for your participation.</p>
+    </div>
+    <button class="btn btn-secondary btn-block" id="download-btn">Save Local Copy</button>
+  </div>
+
+  <script src="epat-core.js"></script>
+  <script>
+    "use strict";
+
+    // ============================================================
+    // UI INITIALIZATION
+    // ============================================================
+    (function generateTicks() {
+      const container = document.getElementById('rotary-dial-ticks');
+      if (!container) return;
+      for (let i = 0; i < 72; i++) {
+        const tick = document.createElement('div');
+        tick.className = 'dial-tick';
+        tick.style.transform = `rotate(${i * 5}deg)`;
+        if (i % 2 === 0) tick.style.height = '10px';
+        if (i % 18 === 0) {
+          tick.style.height = '14px';
+          tick.style.background = 'var(--fg-muted)';
+        }
+        container.appendChild(tick);
+      }
+    })();
+
+    // Core Modules
+    const WakeLockCtrl   = window.ePATCore.WakeLockCtrl;
+    const WabpDetector   = window.ePATCore.WabpDetector;
+    const BeatDetector   = window.ePATCore.BeatDetector;
+    const AudioEngine    = window.ePATCore.AudioEngine;
+    const MotionDetector = window.ePATCore.MotionDetector;
+
+    // ============================================================
+    // UPLOAD MODULE (Unchanged)
+    // ============================================================
+    const UPLOAD_CONFIG = { endpoint: "epat-upload.keeganwhitacre.workers.dev", enabled: true };
+    const Upload = (function () {
+      const PENDING_KEY = "epat_pending_uploads";
+      function loadPending() { try { return JSON.parse(localStorage.getItem(PENDING_KEY) || "{}"); } catch (e) { return {}; } }
+      function savePending(obj) { try { localStorage.setItem(PENDING_KEY, JSON.stringify(obj)); } catch (e) {} }
+      function stashLocally(session) { const p = loadPending(); p[session.sessionId] = session; savePending(p); }
+      function clearLocal(sessionId) { const p = loadPending(); delete p[sessionId]; savePending(p); }
+      async function postOne(session) {
+        if (!UPLOAD_CONFIG.enabled) return { ok: false, reason: "upload_disabled" };
+        try {
+          const res = await fetch(UPLOAD_CONFIG.endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(session) });
+          if (!res.ok) return { ok: false, reason: "http_" + res.status };
+          return { ok: true };
+        } catch (e) { return { ok: false, reason: "network_" + (e.message || "unknown") }; }
+      }
+      return {
+        async send(session) { stashLocally(session); const result = await postOne(session); if (result.ok) clearLocal(session.sessionId); return result; },
+        async retryPending() { if (!UPLOAD_CONFIG.enabled) return; const p = loadPending(); for (const id of Object.keys(p)) { const r = await postOne(p[id]); if (r.ok) clearLocal(id); } }
+      };
+    })();
+
+    window.addEventListener("beforeunload", () => { /* discard active session */ });
+
+    // ============================================================
+    // EMA MODULE (Rewritten for "One Thing" layout)
+    // ============================================================
+    const EMA = (function () {
+      const ITEM = {
+        slider: (id, label, leftAnchor, rightAnchor, opts = {}) => ({ type: "slider", id, label, leftAnchor, rightAnchor, min: opts.min ?? 0, max: opts.max ?? 10, step: opts.step ?? 1, defaultVal: opts.defaultVal ?? 5, unit: opts.unit ?? "" }),
+        choice: (id, label, options) => ({ type: "choice", id, label, options }),
+      };
+
+      const EMA_ITEMS = {
+        morning: [
+          ITEM.slider("sleep_hours",  "How many hours did you sleep last night?", "0", "12+", { min: 0, max: 12, step: 0.5, defaultVal: 7, unit: " hrs" }),
+          ITEM.slider("sleep_quality", "How would you rate the quality of your sleep?", "Poor", "Good"),
+          ITEM.slider("restfulness",   "How rested do you feel right now?", "Not rested", "Fully rested"),
+        ],
+        common: [
+          ITEM.slider("valence", "Right now, my mood is…", "Unpleasant", "Pleasant"),
+          ITEM.slider("arousal", "Right now, my energy level is…", "Low / Calm", "High / Activated"),
+          ITEM.slider("maia_noticing", "Right now, I am aware of sensations in my body.", "Not at all", "Very much"),
+          ITEM.slider("maia_emoawareness", "Right now, I notice how my body feels when I'm having an emotion.", "Not at all", "Very much"),
+          ITEM.choice("ctx_activity", "What are you doing right now?", ["Resting", "Working / Studying", "Socializing", "Exercising", "Eating", "Commuting", "Other"]),
+          ITEM.choice("ctx_social", "Who are you with?", ["Alone", "With 1 person", "Small group", "In a crowd"]),
+          ITEM.choice("ctx_location", "Where are you?", ["Home", "Work / School", "Outside", "In transit", "Other"]),
+        ],
+      };
+
+      let activeItems = [];
+      let currentIndex = 0;
+      let sessionResponses = {};
+      const container = document.getElementById("ema-single-container");
+      const nextBtn = document.getElementById("ema-next-btn");
+      const progressText = document.getElementById("ema-progress-text");
+
+      function renderCurrentItem() {
+        container.innerHTML = "";
+        const item = activeItems[currentIndex];
+        progressText.textContent = `${currentIndex + 1} OF ${activeItems.length}`;
+        
+        const qEl = document.createElement("div");
+        qEl.className = "ema-question";
+        qEl.textContent = item.label;
+        container.appendChild(qEl);
+
+        if (item.type === "slider") {
+          const wrap = document.createElement("div"); wrap.className = "slider-group";
+          const valEl = document.createElement("div"); valEl.className = "slider-val-display"; valEl.textContent = item.defaultVal + item.unit;
+          const input = document.createElement("input"); input.type = "range"; input.className = "range-slider";
+          input.min = item.min; input.max = item.max; input.step = item.step; input.value = item.defaultVal;
+          input.addEventListener("input", () => { 
+            valEl.textContent = input.value + item.unit; 
+            sessionResponses[item.id] = parseFloat(input.value);
+            nextBtn.disabled = false;
+          });
+          const anchors = document.createElement("div"); anchors.className = "slider-labels";
+          anchors.innerHTML = `<span>${item.leftAnchor}</span><span>${item.rightAnchor}</span>`;
+          wrap.append(valEl, input, anchors);
+          container.appendChild(wrap);
+          sessionResponses[item.id] = item.defaultVal; // Default capture
+          nextBtn.disabled = false; // Slider always has a value
+        } 
+        else if (item.type === "choice") {
+          nextBtn.disabled = true; // Require selection
+          const group = document.createElement("div"); group.className = "bubble-group";
+          item.options.forEach(opt => {
+            const b = document.createElement("div"); b.className = "bubble"; b.textContent = opt;
+            b.onclick = () => {
+              group.querySelectorAll(".bubble").forEach(ob => ob.classList.remove("selected"));
+              b.classList.add("selected");
+              sessionResponses[item.id] = opt;
+              nextBtn.disabled = false;
+            };
+            group.appendChild(b);
+          });
+          container.appendChild(group);
+        }
+
+        nextBtn.textContent = currentIndex === activeItems.length - 1 ? "Submit Check-In" : "Next";
+        
+        // Trigger reflow for fade in
+        container.classList.remove("fade-out", "fade-in");
+        void container.offsetWidth;
+        container.classList.add("fade-in");
+        setTimeout(() => container.classList.remove("fade-in"), 50);
+      }
+
+      nextBtn.onclick = () => {
+        container.classList.add("fade-out");
+        setTimeout(() => {
+          if (currentIndex < activeItems.length - 1) {
+            currentIndex++;
+            renderCurrentItem();
+          } else {
+            // Done
+            sessionResponses.submittedAt = new Date().toISOString();
+            App.submitEMAResponses(sessionResponses);
+          }
+        }, 300);
+      };
+
+      return {
+        start(sessionType) {
+          const isMorning = sessionType === "emamorning";
+          activeItems = isMorning ? [...EMA_ITEMS.morning, ...EMA_ITEMS.common] : [...EMA_ITEMS.common];
+          currentIndex = 0;
+          sessionResponses = { type: "ema_response", session: isMorning ? "morning" : (sessionType === "emaevening" ? "evening" : "afternoon") };
+          renderCurrentItem();
+        }
+      };
+    })();
+
+    // ============================================================
+    // ONBOARDING MODULE (One Thing Layout)
+    // ============================================================
+    const Onboarding = (function() {
+      const STEPS = [
+        { id: "audio", title: "Audio Setup", text: "This task requires precision timing.<br><br>Please use <strong>wired earphones</strong> or the <strong>built-in device speaker</strong>.<br><br><span style='color:var(--accent-red); font-size:0.9rem;'>⚠️ Bluetooth headphones introduce delay and cannot be used.</span>", btnText: "I'm using wired/built-in audio" },
+        { id: "test", title: "Sound Check", text: "<span style='font-size:0.9rem; color:var(--fg-muted);'>iPhone users: Ensure silent switch is OFF.</span><br><br>Let's make sure you can hear the tones.", btnText: "🔊 Play Test Tone", action: "playTest" },
+        { id: "prep", title: "Sensor Prep", text: "Place the tip of your index finger gently over both the <strong>rear camera lens</strong> and the <strong>flashlight</strong>.<br><br>Keep perfectly still.", btnText: "Start Calibration" },
+        { id: "post", title: "Calibration Complete", text: "In the main task, you will hear a series of tones representing your heartbeats.<br><br>Rotate the dial until the tone feels perfectly <strong>in sync</strong> with your actual heartbeat.", btnText: "Continue" },
+        { id: "rules", title: "Instructions", text: "Do <strong>not</strong> try to feel your pulse with your other hand. Tune into your internal perception.<br><br>You will start with 2 practice trials.", btnText: "Begin Practice" }
+      ];
+      
+      let currentStepIndex = 0;
+      const container = document.getElementById("onboarding-container");
+      const btn = document.getElementById("onboarding-next-btn");
+
+      function renderStep() {
+        container.innerHTML = "";
+        const step = STEPS[currentStepIndex];
+        
+        container.innerHTML = `<h1 style="text-align:center; margin-bottom:24px;">${step.title}</h1><p style="text-align:center;">${step.text}</p>`;
+        
+        if (step.id === "test") {
+          btn.textContent = step.btnText;
+          btn.onclick = () => {
+            AudioEngine.resume();
+            AudioEngine.playLow(); setTimeout(() => AudioEngine.playLow(), 400); setTimeout(() => AudioEngine.playLow(), 800);
+            container.innerHTML += `<p style="text-align:center; margin-top:24px; font-weight:600; color:var(--accent);">Did you hear the tone?</p>`;
+            btn.textContent = "Yes, continue";
+            btn.onclick = nextStep;
+          };
+        } else {
+          btn.textContent = step.btnText;
+          btn.onclick = () => {
+            if (step.id === "prep") { App.startCalibration(); }
+            else if (step.id === "rules") { App.startTrials(); }
+            else { nextStep(); }
+          };
+        }
+        
+        container.classList.remove("fade-out");
+        void container.offsetWidth;
+      }
+
+      function nextStep() {
+        container.classList.add("fade-out");
+        setTimeout(() => { currentStepIndex++; renderStep(); }, 300);
+      }
+
+      return {
+        start() { currentStepIndex = 0; renderStep(); },
+        showPostCalibration() { currentStepIndex = 3; renderStep(); }
+      };
+    })();
+
+    // ============================================================
+    // TASK LOGIC & UI
+    // ============================================================
+    const App = (function () {
+      const NUM_TRIALS = 20, NUM_PRACTICES = 2, BODY_MAP_EVERY = 4, KNOB_VALUE_RANGE = 1.0, BASELINE_DURATION_S = 120;
+      let sessionData = null, currentEmaSessionType = null;
+      let currentTrialIndex = -NUM_PRACTICES, currentKnobValue = 0, trialRunning = false, trialDetectorRunning = false;
+      let trialIP = [], trialAP = [], trialKS = [], trialCD = [], trialIE = [], trialRecordedHR = [], trialInstantBpms = [];
+      let trialToneTimings = [], trialFingerLossEvents = [], trialInitialKnob = 0;
+      
+      const IBI_CHANGE_THRESHOLD = 0.30;
+      let trialLastIbi = 0, trialCleanBeats = 0, trialFlaggedBeats = 0, trialIbiFlags = [];
+      const SQI_GOOD = 0.008, SQI_WARN = 0.003;
+      let trialSqiTimeSeries = [], trialSqiBadSeconds = 0, trialLastSqiCheckTime = 0, trialDicroticRejections = [];
+      
+      let currentInstantPeriod = 0, currentAveragePeriod = 0, baselineStartTime = 0, baselineTimer = null, baselineBPMs = [];
+      const screens = {};
+      let dialEl, dialAngle = 0, dialDragging = false, dialCx = 0, dialCy = 0, lastAngle = 0;
+
+      function show(id) {
+        document.querySelectorAll(".finger-overlay").forEach((el) => el.classList.remove("visible"));
+        if (screens.active) {
+           screens.active.style.opacity = 0;
+           setTimeout(() => {
+              screens.active.classList.remove("active");
+              screens.active = document.getElementById(id);
+              screens.active.classList.add("active");
+           }, 300); // Wait for fade out
+        } else {
+           screens.active = document.getElementById(id);
+           screens.active.classList.add("active");
+        }
+      }
+
+      function initDial() {
+        dialEl = document.getElementById("rotary-dial");
+        if (!dialEl) return;
+        dialEl.addEventListener("pointerdown", (e) => {
+          e.preventDefault(); dialDragging = true;
+          const rect = dialEl.getBoundingClientRect(); dialCx = rect.left + rect.width / 2; dialCy = rect.top + rect.height / 2;
+          lastAngle = Math.atan2(e.clientY - dialCy, e.clientX - dialCx);
+          dialEl.setPointerCapture(e.pointerId);
+        }, { passive: false });
+        window.addEventListener("pointermove", (e) => {
+          if (!dialDragging) return; e.preventDefault();
+          const a = Math.atan2(e.clientY - dialCy, e.clientX - dialCx);
+          let d = a - lastAngle; if (d > Math.PI) d -= 2 * Math.PI; if (d < -Math.PI) d += 2 * Math.PI;
+          dialAngle = Math.max(-Math.PI, Math.min(Math.PI, dialAngle + d)); lastAngle = a;
+          currentKnobValue = ((dialAngle + Math.PI) / (2 * Math.PI) * 2 - 1) * KNOB_VALUE_RANGE;
+          dialEl.style.transform = `rotate(${dialAngle}rad)`;
+          document.getElementById("confirm-trial-btn").disabled = false;
+        }, { passive: false });
+        window.addEventListener("pointerup", () => { dialDragging = false; });
+      }
+
+      function processIbi(beat) {
+        const ibiMs = beat.instantPeriod * 1000;
+        let flag = null;
+        if (trialLastIbi > 0) {
+          const changeFrac = Math.abs(ibiMs - trialLastIbi) / trialLastIbi;
+          if (changeFrac > IBI_CHANGE_THRESHOLD) {
+            flag = { type: 'successive_diff', magnitude: Math.round(changeFrac * 1000) / 10, prevIbi: Math.round(trialLastIbi), currentIbi: Math.round(ibiMs) };
+            trialFlaggedBeats++;
+          } else { trialCleanBeats++; }
+        } else { trialCleanBeats++; }
+        trialLastIbi = ibiMs;
+        trialIbiFlags.push({ time: beat.time, ibiMs: Math.round(ibiMs * 10) / 10, flag });
+      }
+
+      async function startBaseline() {
+        show("screen-baseline");
+        baselineBPMs = []; baselineStartTime = Date.now();
+        await WakeLockCtrl.request();
+
+        const bpmEl = document.getElementById("baseline-bpm"), statusEl = document.getElementById("baseline-status");
+        const progressCircle = document.getElementById("baseline-progress-circle");
+        let beatCount = 0;
+        
+        await BeatDetector.start({
+          video: document.getElementById("video-feed"), canvas: document.getElementById("sampling-canvas"),
+          onBeatCb: (beat) => {
+            baselineBPMs.push(beat.instantBPM); bpmEl.textContent = Math.round(beat.averageBPM);
+            beatCount++; 
+          },
+          onFingerChangeCb: (p) => {
+            document.getElementById("baseline-finger-overlay").classList.toggle("visible", !p);
+            if (!p) { statusEl.textContent = "Awaiting contact..."; statusEl.style.color = "var(--fg-muted)"; }
+          },
+          onSqiUpdateCb: (sqi) => {
+            if (document.getElementById("baseline-finger-overlay").classList.contains("visible")) return; 
+            if (sqi >= 0.008) { statusEl.textContent = "Perfect pressure. Hold still."; statusEl.style.color = "var(--accent-green)"; } 
+            else if (sqi >= 0.004) { statusEl.textContent = "Good signal. Recording..."; statusEl.style.color = "var(--fg-muted)"; } 
+            else { statusEl.textContent = "Signal weak: Adjust pressure."; statusEl.style.color = "var(--accent)"; }
+          }
+        });
+
+        const circ = 2 * Math.PI * 75;
+        baselineTimer = setInterval(async () => {
+          const elapsed = (Date.now() - baselineStartTime) / 1000, remaining = Math.max(0, BASELINE_DURATION_S - elapsed);
+          progressCircle.style.strokeDashoffset = circ * (1 - Math.min(1, elapsed / BASELINE_DURATION_S));
+          
+          if (remaining <= 0) {
+            clearInterval(baselineTimer);
+            BeatDetector.setCallbacks({ onBeatCb: null, onFingerChangeCb: null, onPPGSampleCb: null, onSqiUpdateCb: null, onDicroticRejectCb: null });
+            trialDetectorRunning = true; 
+            
+            const diagnostics = BeatDetector.getDiagnostics();
+            const finalSqi = BeatDetector.getSqi();
+
+            if (baselineBPMs.length < 80 || diagnostics.clipRate > 20 || finalSqi < 0.002) {
+               await BeatDetector.stop(); trialDetectorRunning = false;
+               statusEl.textContent = `Calibration failed. Restarting...`;
+               statusEl.style.color = "var(--accent-red)";
+               setTimeout(() => startBaseline(), 4000);
+               return;
+            }
+
+            sessionData.data.push({ type: "baseline", recordedHR: baselineBPMs.map(Math.round), totalBeats: baselineBPMs.length, ppgSampleRate: BeatDetector.getActualFPS(), ppgDiagnostics: diagnostics, finalSqi: finalSqi });
+            show("screen-onboarding"); 
+            Onboarding.showPostCalibration();
+          }
+        }, 1000);
+      }
+
+      async function startTrial() {
+        show("screen-trial");
+        trialIP = []; trialAP = []; trialKS = []; trialCD = []; trialIE = []; trialRecordedHR = []; trialInstantBpms = [];
+        trialToneTimings = []; trialFingerLossEvents = [];
+        trialLastIbi = 0; trialCleanBeats = 0; trialFlaggedBeats = 0; trialIbiFlags = [];
+        trialSqiTimeSeries = []; trialSqiBadSeconds = 0; trialLastSqiCheckTime = 0; trialDicroticRejections = [];
+        
+        currentInstantPeriod = 0; currentAveragePeriod = 0;
+        currentKnobValue = (Math.random() * 2 - 1) * KNOB_VALUE_RANGE;
+        trialInitialKnob = currentKnobValue;
+        dialAngle = ((currentKnobValue + KNOB_VALUE_RANGE) / (2 * KNOB_VALUE_RANGE)) * 2 * Math.PI - Math.PI;
+        if(dialEl) dialEl.style.transform = `rotate(${dialAngle}rad)`;
+        
+        trialRunning = true;
+        document.getElementById("trial-label").textContent = currentTrialIndex < 0 ? `Practice Trial ${NUM_PRACTICES + currentTrialIndex + 1}` : `Trial ${currentTrialIndex + 1} of ${NUM_TRIALS}`;
+        document.getElementById("confirm-trial-btn").disabled = true;
+        MotionDetector.start();
+
+        const videoElement = document.getElementById("video-feed");
+        const sqiCameraUI = document.getElementById("trial-sqi-camera-warning");
+        const sqiPreviewCtx = document.getElementById("trial-camera-preview").getContext("2d");
+        // Ensure preview canvas is correct resolution
+        document.getElementById("trial-camera-preview").width = 70 * (window.devicePixelRatio || 1);
+        document.getElementById("trial-camera-preview").height = 70 * (window.devicePixelRatio || 1);
+        let sqiWarningActive = false;
+
+        const beatCb = (beat) => {
+          const prev = currentInstantPeriod;
+          currentInstantPeriod = beat.instantPeriod; currentAveragePeriod = beat.averagePeriod;
+          trialIP.push(currentInstantPeriod); trialAP.push(currentAveragePeriod);
+          trialKS.push(currentKnobValue); trialIE.push(prev - currentInstantPeriod);
+          const delay = (currentAveragePeriod / 2) * currentKnobValue;
+          trialCD.push(delay); trialRecordedHR.push(beat.instantBPM); trialInstantBpms.push(beat.averageBPM);
+          
+          processIbi(beat);
+          
+          const dNow = delay < 0 ? currentInstantPeriod + delay : delay;
+          if (dNow > 0 && dNow < 3) {
+            const timing = AudioEngine.scheduleAt(dNow);
+            if (timing) {
+              trialToneTimings.push({ beatTime: beat.time, intendedDelay: dNow, scheduledAt: timing.scheduledAt, perfNow: timing.perfNow });
+            }
+          }
+          
+          if (MotionDetector.checkMovement()) {
+            const w = document.getElementById("trial-movement-warning");
+            w.classList.add("visible"); clearTimeout(w._t); w._t = setTimeout(() => w.classList.remove("visible"), 2000);
+          }
+        };
+
+        const fCb = (p) => {
+          document.getElementById("trial-finger-overlay").classList.toggle("visible", !p);
+          if (!p) { trialFingerLossEvents.push({ lostAt: performance.now() }); } 
+          else if (trialFingerLossEvents.length > 0 && !trialFingerLossEvents[trialFingerLossEvents.length - 1].restoredAt) {
+            trialFingerLossEvents[trialFingerLossEvents.length - 1].restoredAt = performance.now();
+          }
+        };
+
+        const sqiCb = (sqi) => {
+          const now = Date.now();
+          if (trialLastSqiCheckTime > 0 && sqi < SQI_WARN) { trialSqiBadSeconds += (now - trialLastSqiCheckTime) / 1000; }
+          trialLastSqiCheckTime = now;
+          trialSqiTimeSeries.push({ time: now, sqi: Math.round(sqi * 100000) / 100000 });
+
+          if (sqi < 0.004) {
+            sqiWarningActive = true;
+            sqiCameraUI.classList.add("visible");
+          } else if (sqi > 0.007) {
+            sqiWarningActive = false;
+            sqiCameraUI.classList.remove("visible");
+          }
+        };
+
+        const ppgCb = (sample) => {
+           // If warning is active, draw live feed to the circular canvas
+           if (sqiWarningActive && videoElement && videoElement.readyState === videoElement.HAVE_ENOUGH_DATA) {
+              const dpr = window.devicePixelRatio || 1;
+              sqiPreviewCtx.drawImage(videoElement, 0, 0, 70 * dpr, 70 * dpr);
+           }
+        };
+
+        if (!trialDetectorRunning) {
+          await BeatDetector.start({ video: videoElement, canvas: document.getElementById("sampling-canvas"), onBeatCb: beatCb, onFingerChangeCb: fCb, onSqiUpdateCb: sqiCb, onDicroticRejectCb: (info) => trialDicroticRejections.push(info), onPPGSampleCb: ppgCb });
+          trialDetectorRunning = true;
+        } else { BeatDetector.setCallbacks({ onBeatCb: beatCb, onFingerChangeCb: fCb, onSqiUpdateCb: sqiCb, onDicroticRejectCb: (info) => trialDicroticRejections.push(info), onPPGSampleCb: ppgCb }); }
+      }
+
+      function confirmTrial() {
+        trialRunning = false; MotionDetector.stop();
+        BeatDetector.setCallbacks({ onBeatCb: null, onFingerChangeCb: null, onSqiUpdateCb: null, onDicroticRejectCb: null, onPPGSampleCb: null });
+        document.getElementById("trial-sqi-camera-warning").classList.remove("visible");
+        
+        // Confidence Rating using "One Thing" style container
+        show("screen-ema");
+        document.getElementById("ema-progress-text").textContent = "CONFIDENCE";
+        const container = document.getElementById("ema-single-container");
+        container.innerHTML = `
+          <div class="ema-question">How confident are you that the sound matched your heartbeat?</div>
+          <div class="slider-group">
+            <div class="slider-val-display" id="conf-val">5</div>
+            <input type="range" class="range-slider" id="conf-slider" min="0" max="9" step="1" value="5">
+            <div class="slider-labels"><span>Guessing</span><span>Certain</span></div>
+          </div>
+        `;
+        const sl = document.getElementById("conf-slider"), vd = document.getElementById("conf-val"), btn = document.getElementById("ema-next-btn");
+        btn.textContent = "Submit"; btn.disabled = true;
+        sl.oninput = () => { vd.textContent = sl.value; btn.disabled = false; };
+        
+        btn.onclick = () => {
+          const totalBeats = trialCleanBeats + trialFlaggedBeats;
+          const td = { type: "trial", isPractice: currentTrialIndex < 0, initialKnobValue: trialInitialKnob, instantPeriods: [...trialIP], averagePeriods: [...trialAP], knobScales: [...trialKS], currentDelays: [...trialCD], instantErrs: [...trialIE], recordedHR: [...trialRecordedHR], instantBpms: [...trialInstantBpms], toneTimings: [...trialToneTimings], fingerLossEvents: [...trialFingerLossEvents], confidence: parseInt(sl.value), bodyPos: -1, ppgDiagnostics: BeatDetector.getDiagnostics(), ibiFlags: [...trialIbiFlags], sqiTimeSeries: [...trialSqiTimeSeries], dicroticRejections: [...trialDicroticRejections], qualitySummary: { totalBeats, cleanBeats: trialCleanBeats, flaggedBeats: trialFlaggedBeats, flagRate: totalBeats > 0 ? Math.round(trialFlaggedBeats / totalBeats * 10000) / 100 : 0, dicroticRejectsCount: trialDicroticRejections.length, sqiBadSeconds: Math.round(trialSqiBadSeconds * 10) / 10, sqiFinalValue: Math.round(BeatDetector.getSqi() * 100000) / 100000, ibiChangeThreshold: IBI_CHANGE_THRESHOLD, sqiGoodThreshold: SQI_GOOD, sqiWarnThreshold: SQI_WARN } };
+          
+          if (currentTrialIndex >= 0 && (currentTrialIndex + 1) % BODY_MAP_EVERY === 0) {
+            show("screen-bodymap");
+            const parts = document.querySelectorAll(".body-part"), nb = document.getElementById("nowhere-btn"), cb = document.getElementById("confirm-bodymap-btn");
+            let sel = -1; cb.disabled = true;
+            parts.forEach((p) => { p.classList.remove("selected"); p.onclick = () => { parts.forEach(pp => pp.classList.remove("selected")); nb.classList.remove("selected"); p.classList.add("selected"); sel = parseInt(p.dataset.value); cb.disabled = false; }; });
+            nb.classList.remove("selected"); nb.onclick = () => { parts.forEach(pp => pp.classList.remove("selected")); nb.classList.add("selected"); sel = 8; cb.disabled = false; };
+            cb.onclick = () => { td.bodyPos = sel; endTrial(td); };
+          } else { endTrial(td); }
+        };
+      }
+
+      async function endTrial(td) {
+        td.audioDropLog = AudioEngine.getDropLog(); td.audioCtxState = AudioEngine.getState();
+        AudioEngine.clearDropLog(); AudioEngine.resetSchedulerState();
+        sessionData.data.push(td); currentTrialIndex++;
+        if (currentTrialIndex >= NUM_TRIALS) { trialDetectorRunning = false; await BeatDetector.stop(); WakeLockCtrl.release(); window._epatAdvancePhase(); } 
+        else { startTrial(); }
+      }
+
+      return {
+        init() {
+          screens.active = document.getElementById("screen-participant");
+          initDial(); AudioEngine.init();
+
+          const urlParams = new URLSearchParams(window.location.search);
+          const sessionType = urlParams.get('session') || '';
+          if (urlParams.get('id')) document.getElementById('participant-input').value = urlParams.get('id');
+
+          sessionData = { sessionId: "ses_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8), participantId: "", day: parseInt(urlParams.get('day')) || null, type: "", phases: [], currentPhase: 0, counterbalance: null, startedAt: null, wallClockAnchor: null, perfAnchor: null, device: null, data: [], status: "in_progress" };
+
+          if (sessionType.startsWith('ema')) {
+            sessionData.type = "ema_only"; sessionData.phases = [sessionType];
+            document.getElementById('task-subtitle').textContent = sessionType === 'emamorning' ? "Morning Check-In" : sessionType === 'emaevening' ? "Evening Check-In" : "Afternoon Check-In";
+          } else if (sessionType.startsWith('pair')) {
+            sessionData.type = "paired";
+            const slot = sessionType.replace('pair_', ''), emaPhase = 'ema' + slot, cb = urlParams.get('cb') === 'pat_first' ? 'pat_first' : 'ema_first';
+            sessionData.counterbalance = cb; sessionData.phases = cb === 'ema_first' ? [emaPhase, 'pat'] : ['pat', emaPhase];
+            document.getElementById('task-subtitle').textContent = slot === 'morning' ? "Morning Session" : slot === 'evening' ? "Evening Session" : "Afternoon Session";
+          } else {
+            sessionData.type = "pat_only"; sessionData.phases = ['pat'];
+          }
+
+          document.getElementById("start-btn").onclick = () => {
+            const pid = document.getElementById("participant-input").value.trim(); if (!pid) return;
+            sessionData.participantId = pid; sessionData.startedAt = new Date().toISOString(); sessionData.wallClockAnchor = Date.now(); sessionData.perfAnchor = performance.now();
+            AudioEngine.resume(); runNextPhase();
+          };
+
+          function runNextPhase() {
+            const phase = sessionData.phases[sessionData.currentPhase];
+            if (!phase) { finalizeSession(); return; }
+            if (phase.startsWith('ema')) { currentEmaSessionType = phase; show("screen-ema"); EMA.start(phase); } 
+            else if (phase === 'pat') { show("screen-onboarding"); Onboarding.start(); }
+          }
+
+          window._epatAdvancePhase = function advancePhase() { sessionData.currentPhase++; if (sessionData.currentPhase >= sessionData.phases.length) { finalizeSession(); } else { runNextPhase(); } };
+
+          function finalizeSession() { sessionData.status = "complete"; sessionData.completedAt = new Date().toISOString(); Upload.send(sessionData); show("screen-end"); }
+
+          document.getElementById("confirm-trial-btn").onclick = () => { AudioEngine.resume(); confirmTrial(); };
+          document.getElementById("download-btn").onclick = () => {
+            const a = document.createElement("a"), u = URL.createObjectURL(new Blob([JSON.stringify(sessionData, null, 2)], { type: "application/json" }));
+            a.href = u; a.download = `${sessionData.type}_${sessionData.participantId}_${new Date().toISOString().slice(0, 10)}.json`; a.click(); URL.revokeObjectURL(u);
+          };
+        },
+        startCalibration: startBaseline,
+        startTrials: startTrial,
+        submitEMAResponses(responses) { sessionData.data.push(responses); window._epatAdvancePhase(); }
+      };
+    })();
+
+    document.addEventListener("DOMContentLoaded", () => {
+      App.init(); Upload.retryPending();
+      if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(() => {});
+    });
+  </script>
+</body>
+</html>
