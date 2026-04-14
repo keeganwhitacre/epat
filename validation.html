@@ -5,24 +5,32 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>PPG & Audio Validation Module</title>
   <style>
-    /* --- Clean, Clinical UI Design Tokens --- */
+    /* --- Leica Monochromatic OLED Design Tokens --- */
     :root {
-      --bg: #111827;
-      --bg-card: #1f2937;
-      --border: #374151;
-      --fg: #f9fafb;
-      --fg-muted: #9ca3af;
-      --accent-blue: #3b82f6;
-      --accent-purple: #8b5cf6;
-      --accent-red: #ef4444;
-      --accent-green: #10b981;
-      --accent-yellow: #f59e0b;
-      --radius: 8px;
-      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      --font-mono: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+      --bg: #000000; 
+      --bg-surface: #111111; 
+      --bg-elevated: #1c1c1e;
+      --border: #2c2c2e;
+      --fg: #ffffff; 
+      --fg-muted: #8e8e93; 
+      
+      /* Pure monochromatic accent */
+      --accent: #ffffff; 
+      --accent-hover: #e5e5ea; 
+      
+      /* Semantic colors for validation meters */
+      --accent-red: #ff453a; 
+      --accent-green: #32d74b;
+      --accent-yellow: #ffd60a;
+      --accent-purple: #bf5af2;
+      
+      --radius: 14px; 
+      --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Consolas, monospace;
     }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    
     html, body {
       height: 100%; width: 100%;
       font-family: var(--font);
@@ -30,7 +38,8 @@
       color: var(--fg);
       overflow-x: hidden;
       touch-action: manipulation;
-      -webkit-user-select: none; user-select: none;
+      user-select: none;
+      -webkit-user-select: none;
     }
 
     .container {
@@ -40,7 +49,7 @@
       gap: 20px; min-height: 100%;
     }
 
-    h1 { font-size: 1.5rem; font-weight: 600; color: var(--fg); text-align: center;}
+    h1 { font-size: 1.5rem; font-weight: 600; color: var(--fg); text-align: center; letter-spacing: -0.02em; }
     .label { font-size: 0.8rem; font-weight: 600; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 8px; }
 
     /* Flash Overlay for visual sync */
@@ -54,153 +63,171 @@
     /* Forms & Instructions */
     .input-group { width: 100%; }
     .input-group input {
-      width: 100%; padding: 14px;
-      background: var(--bg-card); border: 1px solid var(--border);
+      width: 100%; padding: 16px; text-align: center;
+      background: var(--bg-surface); border: 1px solid var(--border);
       border-radius: var(--radius); color: var(--fg);
-      font-family: var(--font); font-size: 1rem; outline: none;
+      font-family: var(--font); font-size: 1.1rem; outline: none;
+      transition: border-color 0.2s, background 0.2s;
     }
-    .input-group input:focus { border-color: var(--accent-blue); }
+    .input-group input:focus { border-color: var(--accent); background: var(--bg-elevated); }
 
     .instruction-box {
-      background: rgba(139, 92, 246, 0.1); border: 1px solid rgba(139, 92, 246, 0.3);
-      padding: 12px 16px; border-radius: var(--radius);
-      font-size: 0.9rem; color: #ddd; line-height: 1.4;
+      background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border);
+      padding: 16px; border-radius: var(--radius);
+      font-size: 0.95rem; color: var(--fg-muted); line-height: 1.5; text-align: center;
     }
 
-    /* Buttons */
+    /* Tactile Buttons */
     .btn {
       display: inline-flex; align-items: center; justify-content: center;
       padding: 16px 24px; border-radius: var(--radius);
       border: none; cursor: pointer;
-      font-family: var(--font); font-size: 1.1rem; font-weight: 600;
-      transition: background 0.1s ease, transform 0.1s ease;
-      width: 100%; gap: 8px;
+      font-family: var(--font); font-size: 1.05rem; font-weight: 600;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      width: 100%; gap: 10px; letter-spacing: -0.01em;
     }
-    .btn:active { transform: scale(0.98); }
-    .btn:disabled { opacity: 0.5; pointer-events: none; }
+    .btn:active { transform: scale(0.97); }
+    .btn:disabled { opacity: 0.3; pointer-events: none; }
     
-    .btn-start { background: var(--accent-green); color: #fff; }
-    .btn-stop { background: var(--accent-red); color: #fff; }
-    .btn-tone { background: var(--accent-yellow); color: #111; }
+    .btn-start { background: var(--accent); color: #000; box-shadow: 0 4px 14px rgba(255, 255, 255, 0.15); }
+    .btn-stop { background: var(--bg-surface); color: var(--accent-red); border: 1px solid var(--border); }
+    .btn-tone { background: var(--bg-surface); color: var(--fg); border: 1px solid var(--border); }
     .btn-sync { 
-      background: var(--accent-purple); color: #fff; 
+      background: var(--fg); color: #000; 
       padding: 24px; font-size: 1.2rem; 
-      box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+      box-shadow: 0 4px 16px rgba(255, 255, 255, 0.2);
     }
-    .btn-pulse-beep { background: var(--border); color: var(--fg-muted); }
-    .btn-pulse-beep.active { background: var(--accent-red); color: #fff; box-shadow: 0 0 12px rgba(239, 68, 68, 0.3); }
+    
+    /* Toggle Buttons */
+    .btn-toggle { background: var(--bg-elevated); color: var(--fg-muted); border: 1px solid var(--border); }
+    .btn-toggle.active { background: var(--accent); color: #000; border-color: var(--accent); box-shadow: 0 0 16px rgba(255,255,255,0.2); }
 
     /* Dashboard Elements */
     .dashboard-panel {
-      background: var(--bg-card); border: 1px solid var(--border);
+      background: var(--bg-surface); border: 1px solid var(--border);
       border-radius: var(--radius); padding: 20px;
-      display: flex; flex-direction: column; gap: 16px;
+      display: flex; flex-direction: column; gap: 20px;
     }
 
     .status-row { display: flex; justify-content: space-between; align-items: center; }
-    .status-indicator { font-size: 0.9rem; font-weight: 500; display: flex; align-items: center; gap: 8px; }
-    .status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--border); }
-    .status-dot.active { background: var(--accent-red); box-shadow: 0 0 8px var(--accent-red); }
+    .status-indicator { font-size: 0.95rem; font-weight: 500; display: flex; align-items: center; gap: 8px; color: var(--fg-muted); }
+    .status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--border); transition: all 0.2s; }
+    .status-dot.active { background: var(--accent-green); box-shadow: 0 0 10px var(--accent-green); }
 
     .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .stat-box { text-align: center; background: var(--bg); padding: 12px; border-radius: var(--radius); border: 1px solid var(--border); }
-    .stat-value { font-family: var(--font-mono); font-size: 1.3rem; font-weight: 600; color: var(--fg); }
-    .stat-label { font-size: 0.75rem; color: var(--fg-muted); text-transform: uppercase; margin-bottom: 4px;}
+    .stat-box { text-align: center; background: var(--bg); padding: 14px; border-radius: 10px; border: 1px solid var(--border); }
+    .stat-value { font-family: var(--font-mono); font-size: 1.4rem; font-weight: 500; color: var(--fg); letter-spacing: -0.03em; }
+    .stat-label { font-size: 0.75rem; color: var(--fg-muted); text-transform: uppercase; margin-bottom: 4px; font-weight: 600; letter-spacing: 0.05em; }
 
     /* Visualizers */
     .visualizer-row { display: flex; gap: 16px; height: 80px; }
-    .camera-preview { width: 80px; height: 80px; border-radius: var(--radius); object-fit: cover; border: 1px solid var(--border); background: #000; opacity: 0.7;}
-    .wave-container { flex: 1; height: 80px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); position: relative; }
+    .camera-preview { width: 80px; height: 80px; border-radius: 10px; object-fit: cover; border: 1px solid var(--border); background: #000; }
+    .wave-container { flex: 1; height: 80px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; position: relative; }
     #wave-canvas { width: 100%; height: 100%; display: block; }
 
     .movement-warning {
-      background: rgba(239, 68, 68, 0.2); color: #fca5a5;
-      padding: 12px; border-radius: var(--radius); border: 1px solid rgba(239, 68, 68, 0.4);
-      text-align: center; font-size: 0.9rem; font-weight: 600;
+      background: rgba(255, 69, 58, 0.15); color: var(--accent-red);
+      padding: 14px; border-radius: var(--radius); border: 1px solid rgba(255, 69, 58, 0.3);
+      text-align: center; font-size: 0.95rem; font-weight: 500;
       opacity: 0; transition: opacity 0.2s ease;
     }
     .movement-warning.visible { opacity: 1; }
 
     /* SQI / IBI Quality Panel */
     .quality-panel {
-      background: var(--bg-card); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 16px;
-      display: flex; flex-direction: column; gap: 12px;
+      background: var(--bg-surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 20px;
+      display: flex; flex-direction: column; gap: 16px;
     }
     .quality-panel .panel-title {
       font-size: 0.8rem; font-weight: 600; color: var(--fg-muted);
       text-transform: uppercase; letter-spacing: 0.05em;
     }
-    .quality-meters { display: flex; gap: 12px; }
+    .quality-meters { display: flex; gap: 16px; }
     .quality-meter { flex: 1; }
-    .meter-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+    .meter-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
     .meter-label { font-size: 0.75rem; font-weight: 600; color: var(--fg-muted); text-transform: uppercase; }
-    .meter-value { font-family: var(--font-mono); font-size: 1.1rem; font-weight: 600; transition: color 0.2s; }
-    .meter-bar { width: 100%; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+    .meter-value { font-family: var(--font-mono); font-size: 1.1rem; font-weight: 500; transition: color 0.2s; }
+    .meter-bar { width: 100%; height: 6px; background: var(--bg-elevated); border-radius: 3px; overflow: hidden; border: 1px solid var(--border); }
     .meter-bar-fill { height: 100%; border-radius: 3px; transition: width 0.3s ease, background 0.3s ease; }
-    .quality-summary { display: flex; gap: 12px; }
+    
+    .quality-summary { display: flex; gap: 10px; }
     .quality-stat {
-      flex: 1; text-align: center; padding: 8px;
-      background: var(--bg); border-radius: var(--radius); border: 1px solid var(--border);
+      flex: 1; text-align: center; padding: 10px 4px;
+      background: var(--bg); border-radius: 10px; border: 1px solid var(--border);
     }
-    .quality-stat-value { font-family: var(--font-mono); font-size: 1rem; font-weight: 600; }
-    .quality-stat-label { font-size: 0.7rem; color: var(--fg-muted); text-transform: uppercase; margin-bottom: 2px; }
+    .quality-stat-value { font-family: var(--font-mono); font-size: 1.05rem; font-weight: 500; }
+    .quality-stat-label { font-size: 0.65rem; color: var(--fg-muted); text-transform: uppercase; margin-bottom: 4px; font-weight: 600; }
 
     /* IBI Event Log */
     .ibi-log {
       background: var(--bg); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 8px 12px;
-      max-height: 120px; overflow-y: auto;
-      font-family: var(--font-mono); font-size: 0.75rem;
+      border-radius: 10px; padding: 12px;
+      max-height: 140px; overflow-y: auto;
+      font-family: var(--font-mono); font-size: 0.8rem;
       line-height: 1.6; color: var(--fg-muted);
     }
     .ibi-log:empty::before { content: "IBI events will appear here..."; color: var(--border); }
     .ibi-log .flag { color: var(--accent-yellow); }
     .ibi-log .clean { color: var(--accent-green); }
     .ibi-log .bad { color: var(--accent-red); }
-    .ibi-log .info { color: var(--accent-blue); }
+    .ibi-log .info { color: var(--fg); }
 
     /* PAT Knob Panel */
     .knob-panel {
-      background: var(--bg-card); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 16px;
-      display: none; flex-direction: column; align-items: center; gap: 12px;
+      background: var(--bg-surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 24px;
+      display: none; flex-direction: column; align-items: center; gap: 16px;
     }
     .knob-panel .panel-title {
       font-size: 0.8rem; font-weight: 600; color: var(--fg-muted);
-      text-transform: uppercase; letter-spacing: 0.05em; width: 100%;
+      text-transform: uppercase; letter-spacing: 0.05em; width: 100%; text-align: center; margin-bottom: 8px;
     }
-    .knob-dial-wrapper {
-      position: relative; width: 180px; height: 180px;
+    
+    .rotary-dial-wrapper {
+      position: relative; width: 220px; height: 220px; margin: 0 auto;
       display: flex; align-items: center; justify-content: center;
-      border-radius: 50%; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 50%;
+      user-select: none;
     }
-    .knob-dial-ticks { position: absolute; inset: 0; pointer-events: none; border-radius: 50%; z-index: 1; }
-    .knob-tick {
-      position: absolute; width: 2px; height: 5px;
-      background: var(--border); top: 6px; left: 50%;
-      transform-origin: 50% 84px; margin-left: -1px;
+    
+    .rotary-dial-ticks { position: absolute; inset: 0; pointer-events: none; border-radius: 50%; z-index: 1; }
+    .dial-tick {
+      position: absolute; width: 2px; height: 6px;
+      background: var(--border);
+      top: 8px; left: 50%; transform-origin: 50% 102px;
+      margin-left: -1px; transition: background 0.2s;
     }
-    .knob-dial {
-      width: 100px; height: 100px; border-radius: 50%;
-      background: var(--bg-card); border: 2px solid var(--border);
-      position: relative; touch-action: none; cursor: grab; z-index: 2;
-      display: flex; align-items: center; justify-content: center;
+
+    /* Physical, tactile knob styling */
+    .rotary-dial {
+      width: 130px; height: 130px; border-radius: 50%;
+      background: linear-gradient(145deg, #1f1f23, #121214);
+      box-shadow: 
+        8px 8px 16px rgba(0,0,0,0.8), 
+        -4px -4px 12px rgba(255,255,255,0.03),
+        inset 0 2px 4px rgba(255,255,255,0.05);
+      border: 1px solid var(--border);
+      position: relative; touch-action: none; cursor: grab;
+      z-index: 2; display: flex; align-items: center; justify-content: center;
     }
-    .knob-dial:active { cursor: grabbing; }
-    .knob-dial-indicator {
-      position: absolute; top: 6px; left: 50%;
-      width: 3px; height: 14px; background: var(--accent-blue);
+    .rotary-dial:active { cursor: grabbing; background: linear-gradient(145deg, #1a1a1d, #0f0f11); }
+    
+    .rotary-dial-indicator {
+      position: absolute; top: 10px; left: 50%;
+      width: 4px; height: 20px; background: var(--accent);
       border-radius: 2px; transform: translateX(-50%);
+      box-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
     }
+
     .knob-labels {
-      display: flex; justify-content: space-between; width: 100%;
-      font-size: 0.75rem; font-weight: 600; color: var(--fg-muted);
-      text-transform: uppercase; letter-spacing: 0.03em;
+      display: flex; justify-content: space-between; width: 100%; max-width: 220px;
+      font-size: 0.8rem; font-weight: 600; color: var(--fg-muted);
+      text-transform: uppercase; letter-spacing: 0.05em; margin-top: 12px;
     }
     .knob-value-display {
-      font-family: var(--font-mono); font-size: 1.1rem; font-weight: 600;
-      color: var(--accent-blue);
+      font-family: var(--font-mono); font-size: 1.2rem; font-weight: 500;
+      color: var(--fg); margin-top: 8px;
     }
 
     /* Hidden Elements */
@@ -218,7 +245,7 @@
   <div class="container">
     <div>
       <h1>PPG Validation Tool</h1>
-      <p style="text-align: center; color: var(--fg-muted); font-size: 0.9rem; margin-top: 4px;">Hardware vs Browser Sync Module</p>
+      <p style="text-align: center; color: var(--fg-muted); font-size: 0.95rem; margin-top: 6px;">Hardware vs Browser Sync Module</p>
     </div>
 
     <div class="input-group">
@@ -236,7 +263,7 @@
           <div class="status-dot" id="finger-status"></div>
           <span id="finger-text">Awaiting Finger</span>
         </div>
-        <div class="status-indicator" style="font-family: var(--font-mono); color: var(--accent-blue);" id="timer-display">
+        <div class="status-indicator" style="font-family: var(--font-mono); color: var(--fg);" id="timer-display">
           00:00.00
         </div>
       </div>
@@ -321,27 +348,29 @@
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v8"/><path d="M8 12h8"/></svg>
         Manual Sync Marker
       </button>
+      
       <button class="btn btn-tone" id="btn-tone">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><path d="M6 15H3c-1.1 0-2 .9-2 2v4c0 1.1.9 2 2 2h3c1.1 0 2-.9 2-2v-4c0-1.1-.9-2-2-2Z"/><path d="M21 13h-3c-1.1 0-2 .9-2 2v4c0 1.1.9 2 2 2h3c1.1 0 2-.9 2-2v-4c0-1.1-.9-2-2-2Z"/></svg>
         Play Test Tone (Audio Sync)
       </button>
-      <button class="btn btn-pulse-beep" id="btn-pulse-beep">
+      
+      <button class="btn btn-toggle" id="btn-pulse-beep">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-        Pulse Beep: OFF
+        <span>Pulse Beep: OFF</span>
       </button>
 
       <!-- PAT Knob Mode -->
-      <button class="btn btn-pulse-beep" id="btn-knob-toggle" style="background: var(--border); color: var(--fg-muted);">
+      <button class="btn btn-toggle" id="btn-knob-toggle">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v8"/></svg>
-        PAT Knob: OFF
+        <span>PAT Knob: OFF</span>
       </button>
 
       <div class="knob-panel" id="knob-panel">
         <div class="panel-title">Phase Adjustment Knob</div>
-        <div class="knob-dial-wrapper">
-          <div class="knob-dial-ticks" id="knob-dial-ticks"></div>
-          <div class="knob-dial" id="knob-dial">
-            <div class="knob-dial-indicator"></div>
+        <div class="rotary-dial-wrapper">
+          <div class="rotary-dial-ticks" id="rotary-dial-ticks"></div>
+          <div class="rotary-dial" id="rotary-dial">
+            <div class="rotary-dial-indicator"></div>
           </div>
         </div>
         <div class="knob-labels">
@@ -360,6 +389,23 @@
   <script>
     "use strict";
 
+    // Generate ticks for the new dial
+    (function generateTicks() {
+      const container = document.getElementById('rotary-dial-ticks');
+      if (!container) return;
+      for (let i = 0; i < 72; i++) {
+        const tick = document.createElement('div');
+        tick.className = 'dial-tick';
+        tick.style.transform = `rotate(${i * 5}deg)`;
+        if (i % 2 === 0) tick.style.height = '10px';
+        if (i % 18 === 0) {
+          tick.style.height = '14px';
+          tick.style.background = 'var(--fg-muted)';
+        }
+        container.appendChild(tick);
+      }
+    })();
+
     // ============================================================
     // CORE MODULES — loaded from epat-core.js
     // ============================================================
@@ -368,7 +414,6 @@
     const BeatDetector   = window.ePATCore.BeatDetector;
     const AudioEngine    = window.ePATCore.AudioEngine;
     const MotionDetector = window.ePATCore.MotionDetector;
-
 
     // ============================================================
     // VALIDATION APP LOGIC
@@ -447,7 +492,7 @@
         ibiLog: document.getElementById('ibi-log'),
         knobToggle: document.getElementById('btn-knob-toggle'),
         knobPanel: document.getElementById('knob-panel'),
-        knobDial: document.getElementById('knob-dial'),
+        knobDial: document.getElementById('rotary-dial'),
         knobValueDisplay: document.getElementById('knob-value-display'),
       };
 
@@ -458,7 +503,11 @@
         let min = waveBuffer[0], max = waveBuffer[0];
         for (const v of waveBuffer) { if (v < min) min = v; if (v > max) max = v; }
         const range = max - min || 0.001, pad = 8, dpr = window.devicePixelRatio || 1;
-        ctx.beginPath(); ctx.strokeStyle = "#10b981"; ctx.lineWidth = 2 * dpr; ctx.lineJoin = "round";
+        
+        ctx.beginPath(); 
+        ctx.strokeStyle = "#ff453a"; // Clinical OLED Red
+        ctx.lineWidth = 2 * dpr; 
+        ctx.lineJoin = "round";
         const xStep = (w * dpr) / WAVE_MAX, xOff = (WAVE_MAX - waveBuffer.length) * xStep;
         for (let i = 0; i < waveBuffer.length; i++) {
           const x = xOff + i * xStep, y = pad * dpr + ((max - waveBuffer[i]) / range) * (h * dpr - pad * 2 * dpr);
@@ -580,10 +629,10 @@
         
         if(type === 'manual') {
           ui.sync.style.background = "#fff";
-          ui.sync.style.color = "var(--accent-purple)";
+          ui.sync.style.color = "#000";
           setTimeout(() => {
-            ui.sync.style.background = "var(--accent-purple)";
-            ui.sync.style.color = "#fff";
+            ui.sync.style.background = "var(--fg)";
+            ui.sync.style.color = "#000";
           }, 100);
         }
       }
@@ -612,9 +661,9 @@
         validationData.qualitySummary = {};
         waveBuffer = [];
         pulseBeepEnabled = false;
+        
         ui.pulseBeep.classList.remove('active');
-        ui.pulseBeep.textContent = '';
-        ui.pulseBeep.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg> Pulse Beep: OFF';
+        ui.pulseBeep.querySelector('span').textContent = 'Pulse Beep: OFF';
         
         lastIbi = 0; cleanBeatCount = 0; flaggedBeatCount = 0; ibiFlags = [];
         currentSqiValue = 0; sqiBadSeconds = 0; lastSqiCheckTime = 0; sqiTimeSeries = [];
@@ -623,8 +672,7 @@
         currentAveragePeriodForKnob = 0; currentInstantPeriodForKnob = 0;
         
         ui.knobToggle.classList.remove('active');
-        ui.knobToggle.style.background = 'var(--border)'; ui.knobToggle.style.color = 'var(--fg-muted)';
-        ui.knobToggle.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v8"/></svg> PAT Knob: OFF';
+        ui.knobToggle.querySelector('span').textContent = 'PAT Knob: OFF';
         ui.knobPanel.style.display = 'none';
         if (ui.knobDial) ui.knobDial.style.transform = 'rotate(0rad)';
         ui.knobValueDisplay.textContent = 'Knob: 0.000';
@@ -694,28 +742,27 @@
             }
             
             if (knobEnabled) {
-  const delay = (currentAveragePeriodForKnob / 2) * knobValue;
-  const dNow = delay < 0 ? currentInstantPeriodForKnob + delay : delay;
-  
-  if (dNow > 0 && dNow < 3) {
-    // Let the AudioEngine handle the delay and the refractory check natively
-    const timing = AudioEngine.scheduleAt(dNow);
-    
-    if (timing) {
-      knobToneTimings.push({
-        beatTime: beat.time,
-        knobValue: knobValue,
-        intendedDelay: dNow,
-        scheduledAt: timing.scheduledAt,
-        perfNow: timing.perfNow,
-        averagePeriod: currentAveragePeriodForKnob,
-        dropped: timing.dropped || false // Flag if the doublet killer caught it
-      });
-    }
-  }
-}
+              const delay = (currentAveragePeriodForKnob / 2) * knobValue;
+              const dNow = delay < 0 ? currentInstantPeriodForKnob + delay : delay;
+              
+              if (dNow > 0 && dNow < 3) {
+                // Let the AudioEngine handle the delay and the refractory check natively
+                const timing = AudioEngine.scheduleAt(dNow);
+                
+                if (timing) {
+                  knobToneTimings.push({
+                    beatTime: beat.time,
+                    knobValue: knobValue,
+                    intendedDelay: dNow,
+                    scheduledAt: timing.scheduledAt,
+                    perfNow: timing.perfNow,
+                    averagePeriod: currentAveragePeriodForKnob,
+                    dropped: timing.dropped || false // Flag if the doublet killer caught it
+                  });
+                }
+              }
+            }
 
-            
             ui.fingerDot.style.transform = 'scale(1.5)';
             setTimeout(() => ui.fingerDot.style.transform = 'scale(1)', 100);
           },
@@ -777,6 +824,7 @@
         ui.start.style.display = 'flex';
         ui.fingerDot.classList.remove('active');
         ui.fingerText.textContent = "Recording Stopped";
+        ui.fingerText.style.color = "var(--fg-muted)";
 
         const total = cleanBeatCount + flaggedBeatCount;
         validationData.ibiFlags = ibiFlags;
@@ -821,7 +869,7 @@
             pulseBeepEnabled = !pulseBeepEnabled;
             ui.pulseBeep.classList.toggle('active', pulseBeepEnabled);
             const label = pulseBeepEnabled ? 'ON' : 'OFF';
-            ui.pulseBeep.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg> Pulse Beep: ${label}`;
+            ui.pulseBeep.querySelector('span').textContent = `Pulse Beep: ${label}`;
           }
           ui.pulseBeep.addEventListener('touchstart', (e) => { e.preventDefault(); togglePulseBeep(); });
           ui.pulseBeep.addEventListener('click', togglePulseBeep);
@@ -829,31 +877,20 @@
           function toggleKnob() {
             knobEnabled = !knobEnabled;
             const label = knobEnabled ? 'ON' : 'OFF';
-            ui.knobToggle.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v8"/></svg> PAT Knob: ${label}`;
+            ui.knobToggle.querySelector('span').textContent = `PAT Knob: ${label}`;
+            ui.knobToggle.classList.toggle('active', knobEnabled);
+            
             if (knobEnabled) {
-              ui.knobToggle.style.background = 'var(--accent-blue)'; ui.knobToggle.style.color = '#fff';
               ui.knobPanel.style.display = 'flex';
               pulseBeepEnabled = false;
               ui.pulseBeep.classList.remove('active');
-              ui.pulseBeep.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg> Pulse Beep: OFF';
+              ui.pulseBeep.querySelector('span').textContent = 'Pulse Beep: OFF';
             } else {
-              ui.knobToggle.style.background = 'var(--border)'; ui.knobToggle.style.color = 'var(--fg-muted)';
               ui.knobPanel.style.display = 'none';
             }
           }
           ui.knobToggle.addEventListener('touchstart', (e) => { e.preventDefault(); toggleKnob(); });
           ui.knobToggle.addEventListener('click', toggleKnob);
-
-          const tickContainer = document.getElementById('knob-dial-ticks');
-          if (tickContainer) {
-            for (let i = 0; i < 48; i++) {
-              const tick = document.createElement('div');
-              tick.className = 'knob-tick';
-              tick.style.transform = `rotate(${i * 7.5}deg)`;
-              if (i % 12 === 0) { tick.style.height = '10px'; tick.style.background = 'var(--fg-muted)'; }
-              tickContainer.appendChild(tick);
-            }
-          }
 
           const dialEl = ui.knobDial;
           if (dialEl) {
@@ -869,10 +906,20 @@
               if (!knobDragging) return; e.preventDefault();
               const a = Math.atan2(e.clientY - knobCy, e.clientX - knobCx);
               let d = a - knobLastAngle;
-              if (d > Math.PI) d -= 2 * Math.PI; if (d < -Math.PI) d += 2 * Math.PI;
-              knobAngle = Math.max(-Math.PI, Math.min(Math.PI, knobAngle + d));
+              
+              // Seamless endless rotation
+              if (d > Math.PI) d -= 2 * Math.PI; 
+              if (d < -Math.PI) d += 2 * Math.PI;
+              
+              knobAngle += d; // Endless accumulation
               knobLastAngle = a;
-              knobValue = ((knobAngle + Math.PI) / (2 * Math.PI) * 2 - 1) * KNOB_VALUE_RANGE;
+              
+              // Map raw endless angle to -1 to 1 value for validation logging
+              let rawPhase = (knobAngle / Math.PI) % 2;
+              if (rawPhase > 1) rawPhase -= 2;
+              if (rawPhase < -1) rawPhase += 2;
+              knobValue = rawPhase;
+              
               dialEl.style.transform = `rotate(${knobAngle}rad)`;
               ui.knobValueDisplay.textContent = `Knob: ${knobValue.toFixed(3)}`;
             }, { passive: false });
@@ -887,5 +934,3 @@
   </script>
 </body>
 </html>
-
-
