@@ -1088,40 +1088,36 @@
           // WINDOW: show 3 seconds of timeline so beats scroll slowly
           const WINDOW_MS = 3000;
           const beatCount = Math.floor(elapsed / SIM_PERIOD_MS);
+          const beatsInWindow = Math.ceil(WINDOW_MS / SIM_PERIOD_MS) + 2;
 
-          // Beat marker lines — draw any beat whose time falls within [elapsed - WINDOW_MS, elapsed]
-          ctx.strokeStyle = "rgba(142,142,147,0.35)";
+          // Beat marker lines (grey) — one per period, scrolling left
+          ctx.strokeStyle = "rgba(142,142,147,0.45)";
           ctx.lineWidth = 1.5 * dpr;
-          for (let i = -1; i <= Math.ceil(WINDOW_MS / SIM_PERIOD_MS) + 1; i++) {
-            const beatTime = (beatCount + i) * SIM_PERIOD_MS;
-            const age = elapsed - beatTime; // ms ago (positive = past, negative = future)
-            if (age < -200 || age > WINDOW_MS) continue; // small lookahead buffer
+          for (let i = -1; i <= beatsInWindow; i++) {
+            const beatTime = (beatCount - beatsInWindow + i) * SIM_PERIOD_MS;
+            const age = elapsed - beatTime;
             const x = (1 - age / WINDOW_MS) * W;
             ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
           }
 
-          // Schedule tone: fire offset ms after each beat based on knob
-          // Use a stable committed fire time to avoid the marker jumping
+          // Tone marker lines (coral) — same cadence, shifted by toneOffset
           const toneOffset = (SIM_PERIOD_MS / 2) * knobValue;
-          // The tone for beatCount fires at beatCount*SIM_PERIOD_MS + toneOffset
-          // Schedule the *next* one only once per beat
+          ctx.strokeStyle = "rgba(232,113,106,0.85)";
+          ctx.lineWidth = 2 * dpr;
+          for (let i = -1; i <= beatsInWindow; i++) {
+            const beatTime = (beatCount - beatsInWindow + i) * SIM_PERIOD_MS;
+            const toneTime = beatTime + toneOffset;
+            const age = elapsed - toneTime;
+            const x = (1 - age / WINDOW_MS) * W;
+            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+          }
+
+          // Schedule next tone audio
           if (lastScheduledBeat !== beatCount) {
             const fireMs = (beatCount + 1) * SIM_PERIOD_MS + toneOffset;
             const msUntil = fireMs - elapsed;
             if (msUntil > 0) playTone(msUntil / 1000);
             lastScheduledBeat = beatCount;
-          }
-
-          // Tone marker — show where the CURRENT beat's tone was/is, continuously
-          // This gives a stable line that scrolls left at the same speed as beat markers
-          // but offset by toneOffset relative to the nearest beat marker
-          const currentToneFire = beatCount * SIM_PERIOD_MS + toneOffset;
-          const toneAge = elapsed - currentToneFire;
-          if (toneAge > -200 && toneAge < WINDOW_MS) {
-            const toneX = (1 - toneAge / WINDOW_MS) * W;
-            ctx.strokeStyle = "rgba(232,113,106,0.9)";
-            ctx.lineWidth = 2.5 * dpr;
-            ctx.beginPath(); ctx.moveTo(toneX, 0); ctx.lineTo(toneX, H); ctx.stroke();
           }
 
           // Alignment check — status text only, no canvas drawing
