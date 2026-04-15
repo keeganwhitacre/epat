@@ -593,7 +593,13 @@
       <div class="check-item" id="ob-check-camera"><div class="check-icon">📷</div><div class="check-info"><div class="check-title">Camera</div><div class="check-status" id="ob-check-camera-status">Waiting…</div></div></div>
       <div class="check-item" id="ob-check-torch"><div class="check-icon">🔦</div><div class="check-info"><div class="check-title">Flashlight</div><div class="check-status" id="ob-check-torch-status">Waiting…</div></div></div>
       <div class="check-item" id="ob-check-audio"><div class="check-icon">🔊</div><div class="check-info"><div class="check-title">Audio</div><div class="check-status" id="ob-check-audio-status">Waiting…</div></div></div>
-      <div class="check-item" id="ob-check-signal"><div class="check-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="14" rx="3"/><circle cx="12" cy="13" r="3.5"/><path d="M8 6l1.5-2h5L16 6"/><circle cx="18.5" cy="9.5" r="1" fill="currentColor" stroke="none"/></svg></div><div class="check-info"><div class="check-title">PPG Signal</div><div class="check-status" id="ob-check-signal-status">Waiting…</div></div></div>
+      <div class="check-item" id="ob-check-signal">
+        <div class="check-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="14" rx="3"/><circle cx="12" cy="13" r="3.5"/><path d="M8 6l1.5-2h5L16 6"/><circle cx="18.5" cy="9.5" r="1" fill="currentColor" stroke="none"/></svg></div>
+        <div class="check-info"><div class="check-title">PPG Signal</div><div class="check-status" id="ob-check-signal-status">Waiting…</div></div>
+      </div>
+      <div id="ob-signal-preview-wrap" style="display:none; justify-content:center; margin: 4px 0 8px;">
+        <canvas id="ob-signal-preview" style="width:80px; height:80px; border-radius:50%; border:2px solid var(--border); background:#000; display:block;"></canvas>
+      </div>
     </div>
     <p id="ob-device-status" style="text-align:center; font-size:0.9rem; min-height:1.4em; color:var(--fg-muted);"></p>
     <div style="flex:1; min-height:16px;"></div>
@@ -965,9 +971,21 @@
           setCheck("signal", "testing", "Place finger on camera…");
           const statusEl = document.getElementById("ob-device-status");
           statusEl.textContent = "Place your finger on the camera and flashlight…";
+
+          // Show live camera preview
+          const previewWrap = document.getElementById("ob-signal-preview-wrap");
+          const previewCanvas = document.getElementById("ob-signal-preview");
+          const dpr = window.devicePixelRatio || 1;
+          previewCanvas.width = 80 * dpr; previewCanvas.height = 80 * dpr;
+          const previewCtx = previewCanvas.getContext("2d");
+          previewWrap.style.display = "flex";
+
           let beatCount = 0;
           await new Promise(resolve => {
-            const timeout = setTimeout(() => { setCheck("signal", "fail", "No signal — try again"); resolve(); }, 20000);
+            const timeout = setTimeout(() => {
+              previewWrap.style.display = "none";
+              setCheck("signal", "fail", "No signal — try again"); resolve();
+            }, 20000);
             BeatDetector.start({
               video: document.getElementById("video-feed"),
               canvas: document.getElementById("sampling-canvas"),
@@ -977,6 +995,7 @@
                 if (beatCount >= 5) {
                   clearTimeout(timeout);
                   checks.signal = true;
+                  previewWrap.style.display = "none";
                   setCheck("signal", "pass", `Signal confirmed — ${Math.round(beat.averageBPM)} BPM`);
                   BeatDetector.stop();
                   resolve();
@@ -984,6 +1003,13 @@
               },
               onFingerChangeCb: (p) => {
                 statusEl.textContent = p ? "Finger detected, measuring…" : "Place finger on camera and flashlight…";
+                previewCanvas.style.borderColor = p ? "var(--accent)" : "var(--border)";
+              },
+              onPPGSampleCb: () => {
+                const vid = document.getElementById("video-feed");
+                if (vid && vid.readyState === vid.HAVE_ENOUGH_DATA) {
+                  previewCtx.drawImage(vid, 0, 0, 80 * dpr, 80 * dpr);
+                }
               }
             });
           });
