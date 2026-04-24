@@ -65,7 +65,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
       
       <!-- Main Chart: BPM & IBI -->
-      <div class="glass-panel p-4 lg:col-span-2 flex flex-col relative h-[400px]">
+      <div class="glass-panel p-4 lg:col-span-2 flex flex-col relative h-[450px]">
         <h2 class="text-lg font-semibold text-slate-200 mb-2">Heart Rate & Intervals (BPM)</h2>
         <div class="flex-1 relative w-full">
             <canvas id="bpmChart"></canvas>
@@ -73,7 +73,7 @@
       </div>
 
       <!-- Secondary Chart: SQI -->
-      <div class="glass-panel p-4 flex flex-col relative h-[400px]">
+      <div class="glass-panel p-4 flex flex-col relative h-[450px]">
         <h2 class="text-lg font-semibold text-slate-200 mb-2">Signal Quality Index (SQI)</h2>
         <div class="flex-1 relative w-full">
             <canvas id="sqiChart"></canvas>
@@ -84,7 +84,7 @@
     <!-- Data Table / Event Log -->
     <div class="glass-panel overflow-hidden flex flex-col">
       <div class="p-4 border-b border-slate-700/50 flex justify-between items-center bg-slate-800/50">
-        <h2 class="text-lg font-semibold text-slate-200">Anomaly Event Log</h2>
+        <h2 class="text-lg font-semibold text-slate-200">Session Events & Anomalies</h2>
         <span class="text-xs px-2 py-1 bg-slate-700 rounded text-slate-300" id="event-count">0 Events</span>
       </div>
       <div class="overflow-x-auto max-h-80">
@@ -112,118 +112,98 @@
     let bpmChartInstance = null;
     let sqiChartInstance = null;
 
-    // Hardcoded default demo data from user prompt
+    // Custom Chart.js Plugin for vertical marker lines
+    const markerLinesPlugin = {
+      id: 'markerLines',
+      afterDraw: (chart) => {
+        if (!currentData || !currentData.syncMarkers) return;
+        
+        const { ctx, chartArea: { top, bottom, left, right }, scales: { x } } = chart;
+        const startTime = currentData.beatTimestamps[0];
+
+        currentData.syncMarkers.forEach(marker => {
+          const relativeSec = (marker.time - startTime) / 1000;
+          const xPos = x.getPixelForValue(relativeSec);
+
+          if (xPos >= left && xPos <= right) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.strokeStyle = 'rgba(251, 191, 36, 0.6)'; // Amber 400
+            ctx.setLineDash([5, 5]);
+            ctx.lineWidth = 2;
+            ctx.moveTo(xPos, top);
+            ctx.lineTo(xPos, bottom);
+            ctx.stroke();
+
+            // Label
+            ctx.fillStyle = '#fbbf24';
+            ctx.font = 'bold 10px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(marker.type.toUpperCase(), xPos, top - 5);
+            ctx.restore();
+          }
+        });
+      }
+    };
+
+    // Register plugin globally
+    Chart.register(markerLinesPlugin);
+
+    // Hardcoded default demo data: "LightsOnandOff" session
     const demoData = {
-      "sessionID": "VALIDATE_1777043863574",
-      "browserTimeStart": 5150,
+      "sessionID": "VALIDATE_1777047896127",
       "beatTimestamps": [
-        23426.33, 25360.33, 26494.33, 27394.33, 28377.33, 29461.33, 30394.33, 31428.33, 32495.33, 33378.33, 
-        34428.33, 35395.33, 36329.33, 37512.33, 38529.33, 39446.33, 40330.33, 41480.33, 42530.33, 43564.33, 
-        44414.33, 45397.33, 46414.33, 47415.33, 48281.33, 49032.33, 49815.33, 50599.33, 51515.33, 52532.33, 
-        53632.33, 54533.33, 55299.33, 56183.33, 57250.33, 58133.33, 58984.33, 59917.33, 60951.33, 61918.33, 
-        62951.33, 63918.33, 64768.33, 65718.33, 66802.33, 68069.33, 69502.33, 77138.33, 77571.33, 78138.33, 
-        78521.33, 79455.33, 80405.33, 80921.33, 81288.33, 81705.33, 82338.33, 83055.33, 84022.33, 84468.33, 
-        84976.33
+        14249.33, 15148.33, 16030.33, 16995.33, 17927.33, 18842.33, 19774.33, 20756.33, 22620.33, 23768.33, 
+        24417.33, 25815.33, 26797.33, 27812.33, 28794.33, 29859.33, 30508.33, 31406.33, 32954.33, 33936.33, 
+        34984.33, 35949.33, 37081.33, 38196.33, 39211.33, 40159.33, 41257.33, 42272.33, 43387.33, 44435.33, 
+        45534.33, 46632.33, 47631.33, 48762.33, 49860.33, 50842.33, 51924.33, 53006.33, 54004.33, 55319.33, 
+        56301.33, 57116.33, 58198.33, 59196.33, 60244.33, 61293.33, 62391.33, 63373.33, 64404.33, 65403.33, 
+        66468.33, 67450.33, 68382.33, 69247.33, 70362.33, 71427.33, 72492.33, 73591.33, 74573.33, 75421.33, 
+        76403.33, 77335.33, 78284.33, 79432.33, 80264.33, 81179.33, 82194.33, 83160.33, 84225.33, 85240.33, 
+        86238.33, 87137.33
+      ],
+      "syncMarkers": [
+        { "time": 29634, "type": "manual" },
+        { "time": 50999, "type": "manual" },
+        { "time": 76611, "type": "manual" }
       ],
       "ibiFlags": [
-        {"time": 23426.33, "ibiMs": 1083, "flag": null},
-        {"time": 25360.33, "ibiMs": 1934, "flag": {"type": "successive_diff", "magnitude": 78.6, "prevIbi": 1083, "currentIbi": 1934}},
-        {"time": 26494.33, "ibiMs": 1134, "flag": {"type": "successive_diff", "magnitude": 41.4, "prevIbi": 1934, "currentIbi": 1134}},
-        {"time": 27394.33, "ibiMs": 900, "flag": null},
-        {"time": 28377.33, "ibiMs": 983, "flag": null},
-        {"time": 29461.33, "ibiMs": 1084, "flag": null},
-        {"time": 30394.33, "ibiMs": 933, "flag": null},
-        {"time": 31428.33, "ibiMs": 1034, "flag": null},
-        {"time": 32495.33, "ibiMs": 1067, "flag": null},
-        {"time": 33378.33, "ibiMs": 883, "flag": null},
-        {"time": 34428.33, "ibiMs": 1050, "flag": null},
-        {"time": 35395.33, "ibiMs": 967, "flag": null},
-        {"time": 36329.33, "ibiMs": 934, "flag": null},
-        {"time": 37512.33, "ibiMs": 1183, "flag": null},
-        {"time": 38529.33, "ibiMs": 1017, "flag": null},
-        {"time": 39446.33, "ibiMs": 917, "flag": null},
-        {"time": 40330.33, "ibiMs": 884, "flag": null},
-        {"time": 41480.33, "ibiMs": 1150, "flag": {"type": "successive_diff", "magnitude": 30.1, "prevIbi": 884, "currentIbi": 1150}},
-        {"time": 42530.33, "ibiMs": 1050, "flag": null},
-        {"time": 43564.33, "ibiMs": 1034, "flag": null},
-        {"time": 44414.33, "ibiMs": 850, "flag": null},
-        {"time": 45397.33, "ibiMs": 983, "flag": null},
-        {"time": 46414.33, "ibiMs": 1017, "flag": null},
-        {"time": 47415.33, "ibiMs": 1001, "flag": null},
-        {"time": 48281.33, "ibiMs": 866, "flag": null},
-        {"time": 49032.33, "ibiMs": 751, "flag": null},
-        {"time": 49815.33, "ibiMs": 783, "flag": null},
-        {"time": 50599.33, "ibiMs": 784, "flag": null},
-        {"time": 51515.33, "ibiMs": 916, "flag": null},
-        {"time": 52532.33, "ibiMs": 1017, "flag": null},
-        {"time": 53632.33, "ibiMs": 1100, "flag": null},
-        {"time": 54533.33, "ibiMs": 901, "flag": null},
-        {"time": 55299.33, "ibiMs": 766, "flag": null},
-        {"time": 56183.33, "ibiMs": 884, "flag": null},
-        {"time": 57250.33, "ibiMs": 1067, "flag": null},
-        {"time": 58133.33, "ibiMs": 883, "flag": null},
-        {"time": 58984.33, "ibiMs": 851, "flag": null},
-        {"time": 59917.33, "ibiMs": 933, "flag": null},
-        {"time": 60951.33, "ibiMs": 1034, "flag": null},
-        {"time": 61918.33, "ibiMs": 967, "flag": null},
-        {"time": 62951.33, "ibiMs": 1033, "flag": null},
-        {"time": 63918.33, "ibiMs": 967, "flag": null},
-        {"time": 64768.33, "ibiMs": 850, "flag": null},
-        {"time": 65718.33, "ibiMs": 950, "flag": null},
-        {"time": 66802.33, "ibiMs": 1084, "flag": null},
-        {"time": 68069.33, "ibiMs": 1267, "flag": null},
-        {"time": 69502.33, "ibiMs": 1433, "flag": null},
-        {"time": 77138.33, "ibiMs": 434, "flag": {"type": "successive_diff", "magnitude": 69.7, "prevIbi": 1433, "currentIbi": 434}},
-        {"time": 77571.33, "ibiMs": 433, "flag": null},
-        {"time": 78138.33, "ibiMs": 567, "flag": {"type": "successive_diff", "magnitude": 30.9, "prevIbi": 433, "currentIbi": 567}},
-        {"time": 78521.33, "ibiMs": 383, "flag": {"type": "successive_diff", "magnitude": 32.5, "prevIbi": 567, "currentIbi": 383}},
-        {"time": 79455.33, "ibiMs": 934, "flag": {"type": "successive_diff", "magnitude": 143.9, "prevIbi": 383, "currentIbi": 934}},
-        {"time": 80405.33, "ibiMs": 950, "flag": null},
-        {"time": 80921.33, "ibiMs": 516, "flag": {"type": "successive_diff", "magnitude": 45.7, "prevIbi": 950, "currentIbi": 516}},
-        {"time": 81288.33, "ibiMs": 367, "flag": null},
-        {"time": 81705.33, "ibiMs": 417, "flag": null},
-        {"time": 82338.33, "ibiMs": 633, "flag": {"type": "successive_diff", "magnitude": 51.8, "prevIbi": 417, "currentIbi": 633}},
-        {"time": 83055.33, "ibiMs": 717, "flag": null},
-        {"time": 84022.33, "ibiMs": 967, "flag": {"type": "successive_diff", "magnitude": 34.9, "prevIbi": 717, "currentIbi": 967}},
-        {"time": 84468.33, "ibiMs": 446, "flag": {"type": "successive_diff", "magnitude": 53.9, "prevIbi": 967, "currentIbi": 446}},
-        {"time": 84976.33, "ibiMs": 508, "flag": null}
+        {"time": 22620.33, "ibiMs": 1864, "flag": {"type": "successive_diff", "magnitude": 89.8, "prevIbi": 982, "currentIbi": 1864}},
+        {"time": 23768.33, "ibiMs": 1148, "flag": {"type": "successive_diff", "magnitude": 38.4, "prevIbi": 1864, "currentIbi": 1148}},
+        {"time": 24417.33, "ibiMs": 649, "flag": {"type": "successive_diff", "magnitude": 43.5, "prevIbi": 1148, "currentIbi": 649}},
+        {"time": 25815.33, "ibiMs": 1398, "flag": {"type": "successive_diff", "magnitude": 115.4, "prevIbi": 649, "currentIbi": 1398}},
+        {"time": 30508.33, "ibiMs": 649, "flag": {"type": "successive_diff", "magnitude": 39.1, "prevIbi": 1065, "currentIbi": 649}},
+        {"time": 31406.33, "ibiMs": 898, "flag": {"type": "successive_diff", "magnitude": 38.4, "prevIbi": 649, "currentIbi": 898}},
+        {"time": 32954.33, "ibiMs": 1548, "flag": {"type": "successive_diff", "magnitude": 72.4, "prevIbi": 898, "currentIbi": 1548}},
+        {"time": 33936.33, "ibiMs": 982, "flag": {"type": "successive_diff", "magnitude": 36.6, "prevIbi": 1548, "currentIbi": 982}},
+        {"time": 55319.33, "ibiMs": 1315, "flag": {"type": "successive_diff", "magnitude": 31.8, "prevIbi": 998, "currentIbi": 1315}},
+        {"time": 58198.33, "ibiMs": 1082, "flag": {"type": "successive_diff", "magnitude": 32.8, "prevIbi": 815, "currentIbi": 1082}}
       ],
       "sqiTimeSeries": [
-        {"time": 8278, "sqi": 0}, {"time": 10310, "sqi": 0.85762}, {"time": 12344, "sqi": 1.08236},
-        {"time": 20446, "sqi": 0.06629}, {"time": 30548, "sqi": 0.05434}, {"time": 40650, "sqi": 0.0462},
-        {"time": 50802, "sqi": 0.07011}, {"time": 60922, "sqi": 0.05712}, {"time": 71023, "sqi": 0.01833},
-        {"time": 80126, "sqi": 0.05022}, {"time": 85198, "sqi": 0.02704}
+        {"time": 5450, "sqi": 0.6413}, {"time": 6466, "sqi": 0.04495}, {"time": 31844, "sqi": 0.0191},
+        {"time": 54177, "sqi": 0.02443}, {"time": 78539, "sqi": 0.02119}, {"time": 87674, "sqi": 0.0041}
       ],
       "dicroticRejections": [
-        {"time": 44781.33, "rejectedIbi": 367, "expectedPeriod": 992},
-        {"time": 45814.33, "rejectedIbi": 417, "expectedPeriod": 1000},
-        {"time": 47765.33, "rejectedIbi": 350, "expectedPeriod": 1008.99},
-        {"time": 48698.33, "rejectedIbi": 417, "expectedPeriod": 991.99},
-        {"time": 49465.33, "rejectedIbi": 433, "expectedPeriod": 991.99},
-        {"time": 53016.33, "rejectedIbi": 484, "expectedPeriod": 891},
-        {"time": 56616.33, "rejectedIbi": 433, "expectedPeriod": 875},
-        {"time": 60284.33, "rejectedIbi": 366.99, "expectedPeriod": 908.5},
-        {"time": 67269.33, "rejectedIbi": 467, "expectedPeriod": 958.49}
+        {"time": 23036.33, "rejectedIbi": 416, "expectedPeriod": 932},
+        {"time": 30242.33, "rejectedIbi": 383, "expectedPeriod": 998.5},
+        {"time": 42871.33, "rejectedIbi": 599, "expectedPeriod": 1031.5},
+        {"time": 52506.33, "rejectedIbi": 582, "expectedPeriod": 1090}
       ],
       "qualitySummary": {
-        "totalBeats": 61,
-        "cleanBeats": 50,
-        "flaggedBeats": 11,
-        "flagRate": 18.03,
-        "dicroticRejectsCount": 9,
+        "totalBeats": 72,
+        "cleanBeats": 62,
+        "flaggedBeats": 10,
+        "flagRate": 13.89,
+        "dicroticRejectsCount": 13,
         "sqiBadSeconds": 1,
-        "sqiFinalValue": 0.02704,
-        "ibiChangeThreshold": 0.3,
-        "sqiGoodThreshold": 0.008,
-        "sqiWarnThreshold": 0.003
+        "sqiFinalValue": 0.0041
       }
     };
 
     // --- Chart Global Defaults ---
-    Chart.defaults.color = '#94a3b8'; // Slate 400
-    Chart.defaults.font.family = "ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
+    Chart.defaults.color = '#94a3b8';
+    Chart.defaults.font.family = "ui-sans-serif, system-ui, sans-serif";
 
-    // --- Core Logic ---
     function init() {
       setupDragDrop();
       loadData(demoData);
@@ -232,24 +212,14 @@
     function setupDragDrop() {
       const dropZone = document.getElementById('drop-zone');
       const fileInput = document.getElementById('file-input');
-
       dropZone.addEventListener('click', () => fileInput.click());
-      
-      dropZone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        dropZone.classList.add('dragover');
-      });
-      
-      dropZone.addEventListener('dragleave', () => {
-        dropZone.classList.remove('dragover');
-      });
-      
+      dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+      dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
       dropZone.addEventListener('drop', (e) => {
         e.preventDefault();
         dropZone.classList.remove('dragover');
         if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
       });
-      
       fileInput.addEventListener('change', (e) => {
         if (e.target.files.length) handleFile(e.target.files[0]);
       });
@@ -258,35 +228,24 @@
     function handleFile(file) {
       const reader = new FileReader();
       reader.onload = (e) => {
-        try {
-          const json = JSON.parse(e.target.result);
-          loadData(json);
-        } catch (err) {
-          alert("Invalid JSON file.");
-          console.error(err);
-        }
+        try { loadData(JSON.parse(e.target.result)); } 
+        catch (err) { alert("Invalid JSON file."); }
       };
       reader.readAsText(file);
     }
 
     function loadData(data) {
-      if (!data || !data.beatTimestamps) {
-        alert("Invalid format: Missing beatTimestamps");
-        return;
-      }
+      if (!data || !data.beatTimestamps) return;
       currentData = data;
-      
       updateSummaryCards(data);
       updateEventLog(data);
       renderBpmChart(data);
       renderSqiChart(data);
     }
 
-    // --- UI Updaters ---
     function updateSummaryCards(data) {
       const qs = data.qualitySummary;
       const container = document.getElementById('stats-container');
-      
       const cards = [
         { label: "Total Beats", value: qs.totalBeats, icon: "💓", color: "text-blue-400" },
         { label: "Clean Beats", value: qs.cleanBeats, icon: "✅", color: "text-emerald-400" },
@@ -294,7 +253,6 @@
         { label: "Flag Rate", value: `${qs.flagRate}%`, icon: "📈", color: "text-amber-400" },
         { label: "Dicrotic Rejects", value: qs.dicroticRejectsCount, icon: "🚫", color: "text-purple-400" },
       ];
-
       container.innerHTML = cards.map(c => `
         <div class="glass-panel p-4 flex flex-col justify-center items-start">
           <div class="flex items-center gap-2 mb-1">
@@ -308,145 +266,91 @@
 
     function updateEventLog(data) {
       const tbody = document.getElementById('event-log-body');
+      const startTime = data.beatTimestamps[0];
       let events = [];
 
-      // Add IBIs flags
-      if (data.ibiFlags) {
-        data.ibiFlags.forEach(f => {
-          if (f.flag !== null) {
-            events.push({
-              time: f.time,
-              timeSec: (f.time / 1000).toFixed(2),
-              type: 'IBI Flag',
-              typeClass: 'bg-rose-500/20 text-rose-400 border border-rose-500/30',
-              details: f.flag.type.replace('_', ' '),
-              metric: `Diff: ${f.flag.magnitude.toFixed(1)}% (${f.flag.prevIbi}ms ➔ ${f.flag.currentIbi}ms)`
-            });
-          }
-        });
+      if (data.syncMarkers) {
+        data.syncMarkers.forEach(m => events.push({
+          time: m.time,
+          timeSec: ((m.time - startTime) / 1000).toFixed(2),
+          type: 'Sync Marker',
+          typeClass: 'bg-amber-500/20 text-amber-400 border border-amber-500/30',
+          details: `Manual sync point`,
+          metric: m.type
+        }));
       }
 
-      // Add Dicrotic rejections
-      if (data.dicroticRejections) {
-        data.dicroticRejections.forEach(d => {
-          events.push({
-            time: d.time,
-            timeSec: (d.time / 1000).toFixed(2),
-            type: 'Dicrotic Reject',
-            typeClass: 'bg-purple-500/20 text-purple-400 border border-purple-500/30',
-            details: `Detected premature peak`,
-            metric: `IBI: ${Math.round(d.rejectedIbi)}ms (Expected: ~${Math.round(d.expectedPeriod)}ms)`
+      if (data.ibiFlags) {
+        data.ibiFlags.forEach(f => {
+          if (f.flag) events.push({
+            time: f.time,
+            timeSec: ((f.time - startTime) / 1000).toFixed(2),
+            type: 'IBI Flag',
+            typeClass: 'bg-rose-500/20 text-rose-400 border border-rose-500/30',
+            details: f.flag.type.replace('_', ' '),
+            metric: `${f.flag.magnitude.toFixed(1)}% diff`
           });
         });
       }
 
-      // Sort by time
-      events.sort((a, b) => a.time - b.time);
-      document.getElementById('event-count').textContent = `${events.length} Events`;
-
-      if (events.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" class="px-6 py-4 text-center text-slate-500">No anomalies detected.</td></tr>`;
-        return;
+      if (data.dicroticRejections) {
+        data.dicroticRejections.forEach(d => events.push({
+          time: d.time,
+          timeSec: ((d.time - startTime) / 1000).toFixed(2),
+          type: 'Dicrotic Reject',
+          typeClass: 'bg-purple-500/20 text-purple-400 border border-purple-500/30',
+          details: 'Premature peak',
+          metric: `${Math.round(d.rejectedIbi)}ms IBI`
+        }));
       }
 
+      events.sort((a, b) => a.time - b.time);
+      document.getElementById('event-count').textContent = `${events.length} Events`;
       tbody.innerHTML = events.map(e => `
         <tr class="hover:bg-slate-800/40 transition-colors">
           <td class="px-6 py-3 font-mono text-slate-400">${e.timeSec}s</td>
-          <td class="px-6 py-3">
-            <span class="px-2 py-1 text-xs rounded-md ${e.typeClass}">${e.type}</span>
-          </td>
+          <td class="px-6 py-3"><span class="px-2 py-1 text-xs rounded-md ${e.typeClass}">${e.type}</span></td>
           <td class="px-6 py-3 text-slate-300 capitalize">${e.details}</td>
           <td class="px-6 py-3 text-slate-400 text-xs">${e.metric}</td>
         </tr>
       `).join('');
     }
 
-    // --- Chart Rendering ---
     function renderBpmChart(data) {
       const ctx = document.getElementById('bpmChart').getContext('2d');
       if (bpmChartInstance) bpmChartInstance.destroy();
 
       const startTime = data.beatTimestamps[0];
       const bpmPoints = [];
-      const flagPoints = [];
-
-      // Convert timestamps to BPM and build dataset
       for (let i = 1; i < data.beatTimestamps.length; i++) {
         const timeMs = data.beatTimestamps[i];
-        const timeSec = (timeMs - startTime) / 1000; // Relative seconds
-        const intervalMs = timeMs - data.beatTimestamps[i - 1];
-        const bpm = 60000 / intervalMs;
-
-        // Check if flagged
-        const flagObj = data.ibiFlags ? data.ibiFlags.find(f => f.time === timeMs && f.flag !== null) : null;
-
-        const point = { x: timeSec, y: bpm, timeOriginal: timeMs, flag: flagObj };
-        bpmPoints.push(point);
-        if (flagObj) flagPoints.push(point);
+        const bpm = 60000 / (timeMs - data.beatTimestamps[i - 1]);
+        const flagObj = data.ibiFlags ? data.ibiFlags.find(f => Math.abs(f.time - timeMs) < 1 && f.flag) : null;
+        bpmPoints.push({ x: (timeMs - startTime) / 1000, y: bpm, flag: flagObj });
       }
 
       bpmChartInstance = new Chart(ctx, {
         type: 'line',
         data: {
-          datasets: [
-            {
-              label: 'Heart Rate (BPM)',
-              data: bpmPoints,
-              borderColor: '#3b82f6', // Blue 500
-              backgroundColor: 'rgba(59, 130, 246, 0.1)',
-              borderWidth: 2,
-              pointBackgroundColor: (ctx) => {
-                const point = ctx.raw;
-                return point && point.flag ? '#f43f5e' : '#10b981'; // Rose for flag, Emerald for clean
-              },
-              pointBorderColor: '#0f172a',
-              pointRadius: (ctx) => {
-                 const point = ctx.raw;
-                 return point && point.flag ? 6 : 3;
-              },
-              pointHoverRadius: 8,
-              fill: true,
-              tension: 0.2
-            }
-          ]
+          datasets: [{
+            label: 'BPM',
+            data: bpmPoints,
+            borderColor: '#3b82f6',
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            borderWidth: 2,
+            pointBackgroundColor: p => p.raw && p.raw.flag ? '#f43f5e' : '#10b981',
+            pointRadius: p => p.raw && p.raw.flag ? 6 : 3,
+            fill: true,
+            tension: 0.1
+          }]
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          interaction: {
-            mode: 'index',
-            intersect: false,
-          },
-          plugins: {
-            legend: { display: false },
-            tooltip: {
-              backgroundColor: 'rgba(15, 23, 42, 0.9)',
-              titleColor: '#f8fafc',
-              bodyColor: '#cbd5e1',
-              borderColor: '#334155',
-              borderWidth: 1,
-              callbacks: {
-                label: (context) => {
-                  const p = context.raw;
-                  let label = `BPM: ${p.y.toFixed(1)} `;
-                  if (p.flag) label += ` | ⚠️ Flag: ${p.flag.flag.type}`;
-                  return label;
-                }
-              }
-            }
-          },
+          plugins: { legend: { display: false } },
           scales: {
-            x: {
-              type: 'linear',
-              title: { display: true, text: 'Time since start (seconds)', color: '#64748b' },
-              grid: { color: '#1e293b' }
-            },
-            y: {
-              title: { display: true, text: 'BPM', color: '#64748b' },
-              grid: { color: '#1e293b' },
-              suggestedMin: 40,
-              suggestedMax: 160
-            }
+            x: { type: 'linear', title: { display: true, text: 'Seconds' }, grid: { color: '#1e293b' } },
+            y: { title: { display: true, text: 'BPM' }, grid: { color: '#1e293b' }, suggestedMin: 40 }
           }
         }
       });
@@ -455,64 +359,34 @@
     function renderSqiChart(data) {
       const ctx = document.getElementById('sqiChart').getContext('2d');
       if (sqiChartInstance) sqiChartInstance.destroy();
-
-      if (!data.sqiTimeSeries || data.sqiTimeSeries.length === 0) {
-        // No SQI data handling could go here
-        return;
-      }
-
-      const startTime = data.beatTimestamps[0]; // Align timescale with BPM chart
-      const sqiPoints = data.sqiTimeSeries.map(s => ({
-        x: (s.time - startTime) / 1000, 
-        y: s.sqi
-      })).filter(s => s.x >= -10); // Filter out way-too-early SQI if misaligned
+      const startTime = data.beatTimestamps[0];
+      const sqiPoints = (data.sqiTimeSeries || []).map(s => ({ x: (s.time - startTime) / 1000, y: s.sqi }));
 
       sqiChartInstance = new Chart(ctx, {
         type: 'line',
         data: {
           datasets: [{
-            label: 'Signal Quality Index',
+            label: 'SQI',
             data: sqiPoints,
-            borderColor: '#8b5cf6', // Violet 500
+            borderColor: '#8b5cf6',
             backgroundColor: 'rgba(139, 92, 246, 0.1)',
             borderWidth: 2,
-            pointRadius: 2,
-            pointHoverRadius: 6,
-            pointBackgroundColor: '#8b5cf6',
             fill: true,
-            tension: 0.3,
-            stepped: false
+            tension: 0.3
           }]
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          plugins: {
-            legend: { display: false },
-            tooltip: {
-              backgroundColor: 'rgba(15, 23, 42, 0.9)',
-              callbacks: {
-                label: (context) => `SQI: ${context.raw.y.toFixed(4)}`
-              }
-            }
-          },
+          plugins: { legend: { display: false } },
           scales: {
-            x: {
-              type: 'linear',
-              title: { display: true, text: 'Time (seconds)', color: '#64748b' },
-              grid: { color: '#1e293b' }
-            },
-            y: {
-              title: { display: true, text: 'SQI Value', color: '#64748b' },
-              grid: { color: '#1e293b' },
-              beginAtZero: true
-            }
+            x: { type: 'linear', title: { display: true, text: 'Seconds' }, grid: { color: '#1e293b' } },
+            y: { beginAtZero: true, title: { display: true, text: 'Quality' }, grid: { color: '#1e293b' } }
           }
         }
       });
     }
 
-    // Init on load
     window.addEventListener('DOMContentLoaded', init);
   </script>
 </body>
