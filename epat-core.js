@@ -326,7 +326,7 @@
       animFrameId = requestAnimationFrame(processFrame);
     }
 
-    async function startCamera() {
+async function startCamera() {
       if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; }
 
       // prime permissions — ios enumerateDevices returns empty labels before permission
@@ -386,18 +386,19 @@
         if (!streamSuccess) continue; // Move to the next physical lens if all fallbacks failed
 
         track = stream.getVideoTracks()[0];
+        
         // try torch
         try {
-            const caps = track.getCapabilities ? track.getCapabilities() : {};
-            if (caps.torch) {
-              await track.applyConstraints({ advanced: [{ torch: true }] });
-              torchWorking = true;
-              break;
-            }
-          } catch (e) {}
-          // no torch — release and keep looking
-          stream.getTracks().forEach(t => t.stop()); stream = null; track = null;
-        } catch (e) { /* try next */ }
+          const caps = track.getCapabilities ? track.getCapabilities() : {};
+          if (caps.torch) {
+            await track.applyConstraints({ advanced: [{ torch: true }] });
+            torchWorking = true;
+            break; // Success! Break out of the camera loop
+          }
+        } catch (e) {}
+        
+        // no torch — release and keep looking
+        stream.getTracks().forEach(t => t.stop()); stream = null; track = null;
       }
 
       if (!stream) throw new Error("no usable rear camera with torch");
