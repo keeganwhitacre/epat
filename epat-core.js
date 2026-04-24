@@ -287,13 +287,19 @@
           }
 
           // median-anchored dicrotic gate
-          let isDicrotic = false;
-          const DICROTIC_MIN_PERIODS = 3;
-          if (recentPeriods.length >= DICROTIC_MIN_PERIODS) {
-            const medianMs = getMedian(recentPeriods) * 1000;
-            // 60% allows deep-breath rsa but blocks the notch (fires ~30–45% through cycle)
-            if (interval < medianMs * 0.60) isDicrotic = true;
-          }
+          // median-anchored dicrotic gate
+let isDicrotic = false;
+const DICROTIC_MIN_PERIODS = 3;
+
+// Default to a safe 800ms (75 BPM) baseline while learning the first 3 beats
+const expectedPeriodMs = recentPeriods.length >= DICROTIC_MIN_PERIODS 
+  ? getMedian(recentPeriods) * 1000 
+  : 800;
+
+// 60% allows deep-breath rsa but blocks the notch (fires ~30–45% through cycle)
+if (interval < expectedPeriodMs * 0.60) isDicrotic = true;
+
+if (isDicrotic) {
 
           if (isDicrotic) {
             dicroticRejectCount++;
