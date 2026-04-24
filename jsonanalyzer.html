@@ -81,6 +81,14 @@
       </div>
     </div>
 
+    <!-- IBI Tachogram -->
+    <div class="glass-panel p-4 flex flex-col relative h-[320px]">
+      <h2 class="text-lg font-semibold text-slate-200 mb-1">IBI Tachogram <span class="text-xs text-slate-500 font-normal ml-2">RR interval over time — RSA visible as slow oscillation</span></h2>
+      <div class="flex-1 relative w-full">
+        <canvas id="ibiChart"></canvas>
+      </div>
+    </div>
+
     <!-- Data Table / Event Log -->
     <div class="glass-panel overflow-hidden flex flex-col">
       <div class="p-4 border-b border-slate-700/50 flex justify-between items-center bg-slate-800/50">
@@ -111,6 +119,7 @@
     let currentData = null;
     let bpmChartInstance = null;
     let sqiChartInstance = null;
+    let ibiChartInstance = null;
 
     // Custom Chart.js Plugin for vertical marker lines
     const markerLinesPlugin = {
@@ -241,17 +250,32 @@
       updateEventLog(data);
       renderBpmChart(data);
       renderSqiChart(data);
+      renderIbiChart(data);
     }
 
     function updateSummaryCards(data) {
       const qs = data.qualitySummary;
       const container = document.getElementById('stats-container');
+
+      // Compute session-level stats from beatTimestamps
+      const ts = data.beatTimestamps;
+      const durationSec = ts.length > 1 ? ((ts[ts.length - 1] - ts[0]) / 1000).toFixed(1) : '—';
+      let avgBpm = '—';
+      if (ts.length > 1) {
+        const ibis = [];
+        for (let i = 1; i < ts.length; i++) ibis.push(ts[i] - ts[i - 1]);
+        const meanIbi = ibis.reduce((a, b) => a + b, 0) / ibis.length;
+        avgBpm = (60000 / meanIbi).toFixed(1);
+      }
+
       const cards = [
         { label: "Total Beats", value: qs.totalBeats, icon: "💓", color: "text-blue-400" },
         { label: "Clean Beats", value: qs.cleanBeats, icon: "✅", color: "text-emerald-400" },
         { label: "Flagged Beats", value: qs.flaggedBeats, icon: "⚠️", color: "text-rose-400" },
         { label: "Flag Rate", value: `${qs.flagRate}%`, icon: "📈", color: "text-amber-400" },
         { label: "Dicrotic Rejects", value: qs.dicroticRejectsCount, icon: "🚫", color: "text-purple-400" },
+        { label: "Avg BPM", value: avgBpm, icon: "📊", color: "text-cyan-400" },
+        { label: "Duration", value: `${durationSec}s`, icon: "⏱️", color: "text-slate-300" },
       ];
       container.innerHTML = cards.map(c => `
         <div class="glass-panel p-4 flex flex-col justify-center items-start">
@@ -329,25 +353,55 @@
         bpmPoints.push({ x: (timeMs - startTime) / 1000, y: bpm, flag: flagObj });
       }
 
+      // Build dicrotic rejection annotation points for scatter overlay
+      const dicroticPoints = (data.dicroticRejections || []).map(d => ({
+        x: (d.time - startTime) / 1000,
+        y: 60000 / d.rejectedIbi   // where the false peak would have been
+      }));
+
       bpmChartInstance = new Chart(ctx, {
         type: 'line',
         data: {
-          datasets: [{
-            label: 'BPM',
-            data: bpmPoints,
-            borderColor: '#3b82f6',
-            backgroundColor: 'rgba(59, 130, 246, 0.1)',
-            borderWidth: 2,
-            pointBackgroundColor: p => p.raw && p.raw.flag ? '#f43f5e' : '#10b981',
-            pointRadius: p => p.raw && p.raw.flag ? 6 : 3,
-            fill: true,
-            tension: 0.1
-          }]
+          datasets: [
+            {
+              label: 'BPM',
+              data: bpmPoints,
+              borderColor: '#3b82f6',
+              backgroundColor: 'rgba(59, 130, 246, 0.1)',
+              borderWidth: 2,
+              pointBackgroundColor: p => p.raw && p.raw.flag ? '#f43f5e' : '#10b981',
+              pointRadius: p => p.raw && p.raw.flag ? 6 : 3,
+              fill: true,
+              tension: 0.1,
+              order: 1
+            },
+            {
+              label: 'Dicrotic Reject',
+              data: dicroticPoints,
+              type: 'scatter',
+              pointStyle: 'triangle',
+              pointBackgroundColor: 'rgba(168, 85, 247, 0.8)',
+              pointBorderColor: '#a855f7',
+              pointRadius: 7,
+              showLine: false,
+              order: 0
+            }
+          ]
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          plugins: { legend: { display: false } },
+          plugins: {
+            legend: { display: true, labels: { color: '#94a3b8', boxWidth: 12, font: { size: 11 } } },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => {
+                  if (ctx.dataset.label === 'Dicrotic Reject') return `Rejected: ${ctx.raw.y.toFixed(0)} BPM (dicrotic)`;
+                  return `${ctx.raw.y.toFixed(1)} BPM${ctx.raw.flag ? ' ⚠ flagged' : ''}`;
+                }
+              }
+            }
+          },
           scales: {
             x: { type: 'linear', title: { display: true, text: 'Seconds' }, grid: { color: '#1e293b' } },
             y: { title: { display: true, text: 'BPM' }, grid: { color: '#1e293b' }, suggestedMin: 40 }
@@ -361,27 +415,104 @@
       if (sqiChartInstance) sqiChartInstance.destroy();
       const startTime = data.beatTimestamps[0];
       const sqiPoints = (data.sqiTimeSeries || []).map(s => ({ x: (s.time - startTime) / 1000, y: s.sqi }));
+      const qs = data.qualitySummary || {};
+      const goodThreshold = qs.sqiGoodThreshold;
+      const warnThreshold = qs.sqiWarnThreshold;
+      const xMax = sqiPoints.length ? sqiPoints[sqiPoints.length - 1].x : 100;
+
+      const datasets = [{
+        label: 'SQI',
+        data: sqiPoints,
+        borderColor: '#8b5cf6',
+        backgroundColor: 'rgba(139, 92, 246, 0.1)',
+        borderWidth: 2,
+        fill: true,
+        tension: 0.3,
+        pointRadius: 0
+      }];
+
+      if (goodThreshold != null) {
+        datasets.push({
+          label: `Good ≥${goodThreshold}`,
+          data: [{ x: 0, y: goodThreshold }, { x: xMax, y: goodThreshold }],
+          borderColor: 'rgba(16, 185, 129, 0.7)',
+          borderWidth: 1.5,
+          borderDash: [6, 4],
+          pointRadius: 0,
+          fill: false,
+          tension: 0
+        });
+      }
+      if (warnThreshold != null) {
+        datasets.push({
+          label: `Warn ≤${warnThreshold}`,
+          data: [{ x: 0, y: warnThreshold }, { x: xMax, y: warnThreshold }],
+          borderColor: 'rgba(251, 191, 36, 0.7)',
+          borderWidth: 1.5,
+          borderDash: [6, 4],
+          pointRadius: 0,
+          fill: false,
+          tension: 0
+        });
+      }
 
       sqiChartInstance = new Chart(ctx, {
         type: 'line',
+        data: { datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: true, labels: { color: '#94a3b8', boxWidth: 12, font: { size: 10 } } } },
+          scales: {
+            x: { type: 'linear', title: { display: true, text: 'Seconds' }, grid: { color: '#1e293b' } },
+            y: { beginAtZero: true, title: { display: true, text: 'Perfusion Index' }, grid: { color: '#1e293b' } }
+          }
+        }
+      });
+    }
+
+    function renderIbiChart(data) {
+      const ctx = document.getElementById('ibiChart').getContext('2d');
+      if (ibiChartInstance) ibiChartInstance.destroy();
+      const startTime = data.beatTimestamps[0];
+
+      const ibiPoints = [];
+      for (let i = 1; i < data.beatTimestamps.length; i++) {
+        const timeMs = data.beatTimestamps[i];
+        const ibi = timeMs - data.beatTimestamps[i - 1];
+        const flagObj = data.ibiFlags ? data.ibiFlags.find(f => Math.abs(f.time - timeMs) < 1 && f.flag) : null;
+        ibiPoints.push({ x: (timeMs - startTime) / 1000, y: ibi, flag: flagObj });
+      }
+
+      ibiChartInstance = new Chart(ctx, {
+        type: 'line',
         data: {
           datasets: [{
-            label: 'SQI',
-            data: sqiPoints,
-            borderColor: '#8b5cf6',
-            backgroundColor: 'rgba(139, 92, 246, 0.1)',
-            borderWidth: 2,
+            label: 'IBI (ms)',
+            data: ibiPoints,
+            borderColor: '#10b981',
+            backgroundColor: 'rgba(16, 185, 129, 0.08)',
+            borderWidth: 1.5,
+            pointBackgroundColor: p => p.raw && p.raw.flag ? '#f43f5e' : 'rgba(16,185,129,0.6)',
+            pointRadius: p => p.raw && p.raw.flag ? 5 : 2,
             fill: true,
-            tension: 0.3
+            tension: 0.2
           }]
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          plugins: { legend: { display: false } },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: ctx => `${ctx.raw.y.toFixed(0)} ms  (${(60000/ctx.raw.y).toFixed(1)} BPM)${ctx.raw.flag ? ' ⚠' : ''}`
+              }
+            }
+          },
           scales: {
             x: { type: 'linear', title: { display: true, text: 'Seconds' }, grid: { color: '#1e293b' } },
-            y: { beginAtZero: true, title: { display: true, text: 'Quality' }, grid: { color: '#1e293b' } }
+            y: { title: { display: true, text: 'IBI (ms)' }, grid: { color: '#1e293b' } }
           }
         }
       });
