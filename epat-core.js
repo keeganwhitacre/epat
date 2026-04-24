@@ -299,8 +299,6 @@ const expectedPeriodMs = recentPeriods.length >= DICROTIC_MIN_PERIODS
 // 60% allows deep-breath rsa but blocks the notch (fires ~30–45% through cycle)
 if (interval < expectedPeriodMs * 0.60) isDicrotic = true;
 
-if (isDicrotic) {
-
           if (isDicrotic) {
             dicroticRejectCount++;
             if (onDicroticReject) onDicroticReject({
