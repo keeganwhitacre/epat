@@ -12,33 +12,34 @@
       --border:      #2c2c2e;
       --fg:          #ffffff;
       --muted:       #636366;
-      --muted2:      #48484a;
+      --muted2:      #3a3a3c;
       --green:       #32d74b;
       --yellow:      #ffd60a;
       --red:         #ff453a;
       --purple:      #bf5af2;
       --blue:        #0a84ff;
-      --radius:      16px;
-      --dock-height: 88px;
       --safe-bottom: env(safe-area-inset-bottom, 20px);
       --safe-top:    env(safe-area-inset-top, 44px);
+      --dock-h:      130px;
       --font:        -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
       --mono:        ui-monospace, "SF Mono", monospace;
     }
 
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    *, *::before, *::after {
+      box-sizing: border-box; margin: 0; padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
 
     html, body {
       height: 100%; width: 100%;
       font-family: var(--font);
-      background: var(--bg);
-      color: var(--fg);
+      background: var(--bg); color: var(--fg);
       overflow: hidden;
       touch-action: manipulation;
       user-select: none; -webkit-user-select: none;
     }
 
-    /* ── FLASH OVERLAY ── */
+    /* ── FLASH ── */
     #flash {
       position: fixed; inset: 0; background: #fff;
       z-index: 9999; opacity: 0; pointer-events: none;
@@ -52,12 +53,12 @@
       width: 40px; height: 40px; opacity: 0; pointer-events: none;
     }
 
-    /* ── ROOT LAYOUT — fixed, no scroll ── */
+    /* ── ROOT ── */
     #app {
       position: fixed; inset: 0;
       display: flex; flex-direction: column;
       padding-top: var(--safe-top);
-      padding-bottom: calc(var(--dock-height) + var(--safe-bottom));
+      padding-bottom: calc(var(--dock-h) + var(--safe-bottom));
     }
 
     /* ── HEADER ── */
@@ -67,14 +68,19 @@
       flex-shrink: 0;
     }
     #header-left { display: flex; flex-direction: column; }
-    #app-title { font-size: 0.72rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
+    #app-title {
+      font-size: 0.68rem; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.1em;
+    }
     #timer {
-      font-family: var(--mono); font-size: 1.6rem; font-weight: 300;
+      font-family: var(--mono); font-size: 1.55rem; font-weight: 300;
       color: var(--fg); letter-spacing: -0.02em; line-height: 1.1;
     }
     #timer.running { color: var(--green); }
 
-    #header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+    #header-right {
+      display: flex; flex-direction: column; align-items: flex-end; gap: 5px;
+    }
     #finger-status {
       display: flex; align-items: center; gap: 6px;
       font-size: 0.78rem; font-weight: 500; color: var(--muted);
@@ -86,25 +92,41 @@
     }
     #finger-dot.on { background: var(--green); box-shadow: 0 0 8px var(--green); }
     #sqi-badge {
-      font-family: var(--mono); font-size: 0.72rem; font-weight: 600;
-      padding: 2px 8px; border-radius: 20px; border: 1px solid var(--border);
-      color: var(--muted); background: var(--surface);
+      font-family: var(--mono); font-size: 0.7rem; font-weight: 600;
+      padding: 2px 9px; border-radius: 20px;
+      border: 1px solid var(--border); color: var(--muted); background: var(--surface);
       transition: color 0.3s, border-color 0.3s;
     }
-    #sqi-badge.good  { color: var(--green);  border-color: var(--green); }
-    #sqi-badge.warn  { color: var(--yellow); border-color: var(--yellow); }
-    #sqi-badge.bad   { color: var(--red);    border-color: var(--red); }
+    #sqi-badge.good { color: var(--green);  border-color: var(--green); }
+    #sqi-badge.warn { color: var(--yellow); border-color: var(--yellow); }
+    #sqi-badge.bad  { color: var(--red);    border-color: var(--red); }
 
-    /* ── WAVEFORM ── */
+    /* ── WAVEFORM with camera overlay ── */
     #wave-wrap {
-      flex-shrink: 0;
-      height: 110px;
-      position: relative;
-      margin: 4px 0;
+      flex-shrink: 0; height: 112px;
+      position: relative; margin: 2px 0;
     }
     #wave-canvas { display: block; width: 100%; height: 100%; }
 
-    /* Beat flash line */
+    /* Camera preview — inset top-left corner of waveform */
+    #cam-preview {
+      position: absolute; top: 8px; left: 12px;
+      width: 52px; height: 52px; border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: #000;
+      overflow: hidden;
+      z-index: 2;
+    }
+    #cam-canvas {
+      width: 100%; height: 100%;
+      display: block; object-fit: cover;
+    }
+    /* Dim the preview so it doesn't fight the waveform */
+    #cam-preview::after {
+      content: ''; position: absolute; inset: 0;
+      background: rgba(0,0,0,0.15); border-radius: 10px; pointer-events: none;
+    }
+
     #beat-line {
       position: absolute; top: 0; bottom: 0; width: 2px;
       background: rgba(255,255,255,0.15); right: 0;
@@ -115,15 +137,16 @@
     /* ── BPM HERO ── */
     #bpm-hero {
       text-align: center; flex-shrink: 0;
-      padding: 8px 20px 4px;
+      padding: 6px 20px 2px;
     }
     #bpm-value {
-      font-family: var(--mono); font-size: 5.5rem; font-weight: 200;
+      font-family: var(--mono); font-size: 5.2rem; font-weight: 200;
       letter-spacing: -0.05em; line-height: 1; color: var(--fg);
-      transition: color 0.3s;
     }
-    #bpm-value.active { color: var(--fg); }
-    #bpm-label { font-size: 0.72rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.12em; margin-top: 2px; }
+    #bpm-label {
+      font-size: 0.68rem; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.12em; margin-top: 1px;
+    }
 
     /* ── STATS STRIP ── */
     #stats-strip {
@@ -133,129 +156,141 @@
       border-bottom: 1px solid var(--border);
       flex-shrink: 0;
     }
-    .stat-cell {
-      background: var(--bg); text-align: center;
-      padding: 10px 4px;
+    .sc {
+      background: var(--bg); text-align: center; padding: 9px 4px;
     }
-    .stat-cell-val {
-      font-family: var(--mono); font-size: 1.15rem; font-weight: 500;
-      line-height: 1; color: var(--fg);
+    .sc-val {
+      font-family: var(--mono); font-size: 1.1rem; font-weight: 500; line-height: 1;
     }
-    .stat-cell-lbl {
-      font-size: 0.6rem; font-weight: 700; color: var(--muted);
-      text-transform: uppercase; letter-spacing: 0.05em;
-      margin-top: 3px;
+    .sc-lbl {
+      font-size: 0.58rem; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.05em; margin-top: 3px;
     }
 
     /* ── EVENT LOG ── */
     #log-wrap {
-      flex: 1; overflow: hidden;
-      position: relative;
-      margin: 0;
+      flex: 1; overflow: hidden; position: relative;
     }
     #log {
       position: absolute; inset: 0;
       overflow-y: auto; -webkit-overflow-scrolling: touch;
-      padding: 8px 16px 8px;
-      font-family: var(--mono); font-size: 0.75rem; line-height: 1.8;
-      color: var(--muted);
+      padding: 8px 16px;
+      font-family: var(--mono); font-size: 0.74rem;
+      line-height: 1.85; color: var(--muted);
     }
-    #log:empty::before { content: "Events will appear here once recording starts…"; color: var(--muted2); }
-    #log .ev-clean   { color: var(--green); }
-    #log .ev-flag    { color: var(--yellow); }
-    #log .ev-bad     { color: var(--red); }
-    #log .ev-dic     { color: var(--purple); }
-    #log .ev-info    { color: var(--blue); }
-    #log .ev-marker  { color: var(--fg); font-weight: 700; }
+    #log:empty::before {
+      content: "Session events appear here…"; color: var(--muted2);
+    }
+    #log .ev-clean  { color: var(--green); }
+    #log .ev-flag   { color: var(--yellow); }
+    #log .ev-dic    { color: var(--purple); }
+    #log .ev-info   { color: var(--blue); }
+    #log .ev-marker { color: var(--fg); font-weight: 700; }
+    #log .ev-bad    { color: var(--red); }
 
     /* ── MOTION WARNING ── */
     #motion-warn {
-      position: absolute; left: 16px; right: 16px; bottom: 4px;
-      background: rgba(255,69,58,0.18); border: 1px solid rgba(255,69,58,0.4);
+      position: absolute; left: 12px; right: 12px; bottom: 4px;
+      background: rgba(255,69,58,0.15); border: 1px solid rgba(255,69,58,0.35);
       color: var(--red); border-radius: 10px; text-align: center;
-      font-size: 0.82rem; font-weight: 600; padding: 8px;
-      opacity: 0; transition: opacity 0.2s; pointer-events: none;
-      z-index: 10;
+      font-size: 0.8rem; font-weight: 600; padding: 8px;
+      opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 10;
     }
     #motion-warn.on { opacity: 1; }
 
-    /* ── BOTTOM DOCK ── */
+    /* ══════════════════════════════════════════
+       DOCK — scrollable pill row
+    ══════════════════════════════════════════ */
     #dock {
       position: fixed; bottom: 0; left: 0; right: 0;
-      height: calc(var(--dock-height) + var(--safe-bottom));
-      padding-bottom: var(--safe-bottom);
-      background: rgba(17,17,17,0.95);
-      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      background: rgba(14,14,16,0.97);
+      backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
       border-top: 1px solid var(--border);
       z-index: 100;
+      padding-bottom: var(--safe-bottom);
     }
 
-    /* IDLE DOCK — just start button */
+    /* IDLE STATE */
     #dock-idle {
-      display: flex; align-items: center; justify-content: center;
-      height: var(--dock-height); padding: 12px 20px;
+      padding: 12px 20px;
     }
     #btn-start {
       width: 100%; height: 52px; border-radius: 14px; border: none;
       background: #fff; color: #000;
-      font-family: var(--font); font-size: 1.05rem; font-weight: 700;
+      font-family: var(--font); font-size: 1rem; font-weight: 700;
       letter-spacing: -0.01em; cursor: pointer;
-      box-shadow: 0 4px 20px rgba(255,255,255,0.18);
-      transition: transform 0.12s, opacity 0.12s;
+      box-shadow: 0 0 24px rgba(255,255,255,0.14);
+      transition: opacity 0.12s, transform 0.12s;
     }
-    #btn-start:active { transform: scale(0.97); opacity: 0.85; }
+    #btn-start:active { opacity: 0.8; transform: scale(0.98); }
 
-    /* ACTIVE DOCK — 3 big buttons + stop */
-    #dock-active {
-      display: none;
-      height: var(--dock-height);
-      padding: 10px 16px;
-      gap: 10px;
+    /* ACTIVE STATE — two rows */
+    #dock-active { display: none; flex-direction: column; }
+    #dock-active.on { display: flex; }
+
+    /* Row 1: big primary actions */
+    #dock-row1 {
+      display: flex; gap: 10px; padding: 12px 16px 6px;
     }
-    #dock-active.on { display: flex; align-items: center; }
 
-    /* SYNC — primary fat button, left */
     #btn-sync {
-      flex: 1.6; height: 52px; border-radius: 14px; border: none;
+      flex: 2; height: 52px; border-radius: 14px; border: none;
       background: #fff; color: #000;
       font-family: var(--font); font-size: 0.95rem; font-weight: 800;
-      cursor: pointer; letter-spacing: -0.01em;
-      display: flex; align-items: center; justify-content: center; gap: 7px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
       transition: transform 0.1s, background 0.1s;
-      box-shadow: 0 2px 12px rgba(255,255,255,0.2);
+      box-shadow: 0 0 16px rgba(255,255,255,0.16);
     }
-    #btn-sync:active { transform: scale(0.96); background: #e0e0e0; }
-    #btn-sync .sync-icon { font-size: 1.1rem; }
+    #btn-sync:active { transform: scale(0.96); }
 
-    /* BEEP toggle */
-    #btn-beep {
-      flex: 1; height: 52px; border-radius: 14px; border: 1px solid var(--border);
-      background: var(--elevated); color: var(--muted);
-      font-family: var(--font); font-size: 0.78rem; font-weight: 700;
-      cursor: pointer; text-align: center; letter-spacing: -0.01em;
-      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-      transition: all 0.15s;
-    }
-    #btn-beep .beep-icon { font-size: 1.1rem; }
-    #btn-beep.on { background: rgba(50,215,75,0.15); color: var(--green); border-color: var(--green); }
-
-    /* STOP */
     #btn-stop {
-      flex: 1; height: 52px; border-radius: 14px; border: 1px solid rgba(255,69,58,0.3);
-      background: rgba(255,69,58,0.12); color: var(--red);
-      font-family: var(--font); font-size: 0.78rem; font-weight: 700;
-      cursor: pointer; text-align: center; letter-spacing: -0.01em;
-      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+      flex: 1; height: 52px; border-radius: 14px;
+      border: 1px solid rgba(255,69,58,0.3);
+      background: rgba(255,69,58,0.1); color: var(--red);
+      font-family: var(--font); font-size: 0.82rem; font-weight: 700;
+      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
       transition: transform 0.1s;
     }
     #btn-stop:active { transform: scale(0.96); }
-    #btn-stop .stop-icon { font-size: 1.1rem; }
 
-    /* ── SESSION SHEET (pre-recording) ── */
+    /* Row 2: horizontally scrollable secondary controls */
+    #dock-row2 {
+      display: flex; gap: 8px;
+      padding: 0 16px 10px;
+      overflow-x: auto; -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    #dock-row2::-webkit-scrollbar { display: none; }
+
+    .dock-pill {
+      flex-shrink: 0;
+      height: 36px; border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--elevated); color: var(--muted);
+      font-family: var(--font); font-size: 0.76rem; font-weight: 600;
+      padding: 0 14px; cursor: pointer;
+      display: flex; align-items: center; gap: 6px;
+      white-space: nowrap;
+      transition: all 0.15s;
+    }
+    .dock-pill:active { opacity: 0.7; transform: scale(0.97); }
+    .dock-pill.on {
+      background: rgba(255,255,255,0.08);
+      border-color: rgba(255,255,255,0.3);
+      color: var(--fg);
+    }
+    .dock-pill.on-green  { background: rgba(50,215,75,0.12);  border-color: var(--green);  color: var(--green); }
+    .dock-pill.on-yellow { background: rgba(255,214,10,0.12); border-color: var(--yellow); color: var(--yellow); }
+
+    /* Pill icon — small SVG wrapper */
+    .pill-icon { display: flex; align-items: center; flex-shrink: 0; }
+    .pill-icon svg { width: 13px; height: 13px; }
+
+    /* ── SESSION SHEET ── */
     #session-sheet {
       position: fixed; inset: 0; z-index: 200;
-      background: rgba(0,0,0,0.85);
-      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      background: rgba(0,0,0,0.82);
+      backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
       display: flex; align-items: flex-end;
       padding-bottom: var(--safe-bottom);
     }
@@ -265,104 +300,94 @@
       border-top: 1px solid var(--border);
     }
     #session-card h2 {
-      font-size: 1.3rem; font-weight: 700; text-align: center;
+      font-size: 1.25rem; font-weight: 700; text-align: center;
       letter-spacing: -0.02em; margin-bottom: 6px;
     }
     #session-card p {
-      font-size: 0.85rem; color: var(--muted); text-align: center;
-      margin-bottom: 24px; line-height: 1.5;
+      font-size: 0.84rem; color: var(--muted); text-align: center;
+      margin-bottom: 22px; line-height: 1.5;
     }
     #session-id {
-      width: 100%; padding: 16px; border-radius: 12px;
+      width: 100%; padding: 15px; border-radius: 12px;
       background: var(--surface); border: 1px solid var(--border);
-      color: var(--fg); font-family: var(--mono); font-size: 1rem;
-      outline: none; margin-bottom: 12px; text-align: center;
+      color: var(--fg); font-family: var(--mono); font-size: 0.95rem;
+      outline: none; margin-bottom: 10px; text-align: center;
     }
-    #session-id:focus { border-color: rgba(255,255,255,0.4); }
+    #session-id:focus { border-color: rgba(255,255,255,0.35); }
     #btn-begin {
       width: 100%; padding: 16px; border-radius: 14px; border: none;
       background: #fff; color: #000;
-      font-size: 1.05rem; font-weight: 700; cursor: pointer; letter-spacing: -0.01em;
+      font-size: 1rem; font-weight: 700; cursor: pointer;
     }
     #btn-begin:active { opacity: 0.85; }
     #btn-cancel {
-      width: 100%; padding: 14px; border-radius: 14px; border: none;
+      width: 100%; padding: 13px; border-radius: 14px; border: none;
       background: transparent; color: var(--muted);
-      font-size: 0.95rem; font-weight: 600; cursor: pointer; margin-top: 4px;
+      font-size: 0.92rem; font-weight: 600; cursor: pointer; margin-top: 4px;
     }
 
     /* ── KNOB SHEET ── */
     #knob-sheet {
       position: fixed; inset: 0; z-index: 150;
-      background: rgba(0,0,0,0.6);
-      backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+      background: rgba(0,0,0,0.55);
+      backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
       display: none; align-items: flex-end;
       padding-bottom: var(--safe-bottom);
     }
     #knob-sheet.on { display: flex; }
     #knob-card {
       background: var(--elevated); border-radius: 24px 24px 0 0;
-      width: 100%; padding: 20px 24px 24px;
+      width: 100%; padding: 18px 24px 22px;
       border-top: 1px solid var(--border);
-      display: flex; flex-direction: column; align-items: center; gap: 16px;
+      display: flex; flex-direction: column; align-items: center; gap: 14px;
     }
     #knob-handle {
-      width: 36px; height: 4px; border-radius: 2px;
-      background: var(--border); margin-bottom: 4px;
+      width: 36px; height: 4px; border-radius: 2px; background: var(--border);
     }
-    #knob-card h3 { font-size: 1rem; font-weight: 700; letter-spacing: -0.02em; }
+    #knob-card h3 {
+      font-size: 0.95rem; font-weight: 700; letter-spacing: -0.02em;
+    }
     .knob-meta {
-      display: flex; gap: 12px; font-family: var(--mono); font-size: 0.78rem; color: var(--muted);
+      font-family: var(--mono); font-size: 0.78rem; color: var(--muted);
+      display: flex; gap: 16px;
     }
     #knob-phase-val { color: var(--fg); font-weight: 600; }
 
-    /* The dial */
     #dial-wrap {
-      position: relative; width: 200px; height: 200px;
+      position: relative; width: 196px; height: 196px;
       display: flex; align-items: center; justify-content: center;
     }
     #dial-ticks { position: absolute; inset: 0; pointer-events: none; border-radius: 50%; }
     .dial-tick {
-      position: absolute; width: 2px; height: 7px;
-      background: var(--border); top: 6px;
-      left: 50%; transform-origin: 50% 94px; margin-left: -1px;
+      position: absolute; width: 2px; height: 6px; background: var(--border);
+      top: 6px; left: 50%; transform-origin: 50% 92px; margin-left: -1px;
     }
-    .dial-tick.major { height: 12px; background: var(--muted2); }
+    .dial-tick.major { height: 11px; background: var(--muted2); }
     #dial {
-      width: 124px; height: 124px; border-radius: 50%;
+      width: 120px; height: 120px; border-radius: 50%;
       background: radial-gradient(circle at 35% 35%, #2a2a2e, #0d0d0f);
       box-shadow: 8px 8px 20px rgba(0,0,0,0.9), -3px -3px 10px rgba(255,255,255,0.03),
                   inset 0 2px 4px rgba(255,255,255,0.06);
       border: 1px solid var(--border);
       position: relative; touch-action: none; cursor: grab; z-index: 2;
-      display: flex; align-items: center; justify-content: center;
     }
     #dial:active { cursor: grabbing; }
     #dial-pip {
       position: absolute; top: 10px; left: 50%;
-      width: 4px; height: 18px; border-radius: 2px;
+      width: 4px; height: 16px; border-radius: 2px;
       background: #fff; transform: translateX(-50%);
-      box-shadow: 0 0 8px rgba(255,255,255,0.5);
+      box-shadow: 0 0 8px rgba(255,255,255,0.45);
     }
-
     #knob-labels {
-      display: flex; justify-content: space-between; width: 200px;
-      font-size: 0.72rem; font-weight: 700; color: var(--muted);
+      display: flex; justify-content: space-between; width: 196px;
+      font-size: 0.7rem; font-weight: 700; color: var(--muted);
       text-transform: uppercase; letter-spacing: 0.05em;
     }
     #btn-close-knob {
-      width: 100%; padding: 14px; border-radius: 14px; border: 1px solid var(--border);
-      background: var(--surface); color: var(--muted);
-      font-size: 0.95rem; font-weight: 600; cursor: pointer;
+      width: 100%; padding: 13px; border-radius: 14px;
+      border: 1px solid var(--border); background: var(--surface);
+      color: var(--muted); font-size: 0.92rem; font-weight: 600; cursor: pointer;
     }
-    #btn-open-knob {
-      position: absolute; top: 10px; right: 10px;
-      background: var(--elevated); border: 1px solid var(--border);
-      color: var(--muted); font-size: 0.72rem; font-weight: 700;
-      padding: 5px 10px; border-radius: 8px; cursor: pointer;
-      text-transform: uppercase; letter-spacing: 0.05em;
-    }
-    #btn-open-knob.on { color: var(--yellow); border-color: var(--yellow); background: rgba(255,214,10,0.08); }
   </style>
 </head>
 <body>
@@ -371,7 +396,7 @@
 <video id="video-feed" playsinline muted></video>
 <canvas id="sampling-canvas"></canvas>
 
-<!-- SESSION SHEET — shown before recording -->
+<!-- SESSION SHEET -->
 <div id="session-sheet">
   <div id="session-card">
     <h2>New Session</h2>
@@ -395,7 +420,7 @@
       <div id="dial-ticks"></div>
       <div id="dial"><div id="dial-pip"></div></div>
     </div>
-    <div id="knob-labels"><span>◀ Earlier</span><span>Later ▶</span></div>
+    <div id="knob-labels"><span>Earlier</span><span>Later</span></div>
     <button id="btn-close-knob">Done</button>
   </div>
 </div>
@@ -403,14 +428,12 @@
 <!-- MAIN APP -->
 <div id="app">
 
-  <!-- HEADER -->
   <div id="header">
     <div id="header-left">
       <span id="app-title">ePAT Validation</span>
       <span id="timer">00:00</span>
     </div>
-    <div id="header-right" style="position:relative;">
-      <button id="btn-open-knob">PAT Knob</button>
+    <div id="header-right">
       <div id="finger-status">
         <div id="finger-dot"></div>
         <span id="finger-text">No signal</span>
@@ -419,46 +442,49 @@
     </div>
   </div>
 
-  <!-- WAVEFORM -->
+  <!-- Waveform with camera inset -->
   <div id="wave-wrap">
     <canvas id="wave-canvas"></canvas>
+    <div id="cam-preview">
+      <canvas id="cam-canvas"></canvas>
+    </div>
     <div id="beat-line"></div>
   </div>
 
-  <!-- BPM HERO -->
+  <!-- BPM -->
   <div id="bpm-hero">
     <div id="bpm-value">--</div>
     <div id="bpm-label">beats per minute</div>
   </div>
 
-  <!-- STATS STRIP -->
+  <!-- Stats -->
   <div id="stats-strip">
-    <div class="stat-cell">
-      <div class="stat-cell-val" id="s-beats">0</div>
-      <div class="stat-cell-lbl">Beats</div>
+    <div class="sc">
+      <div class="sc-val" id="s-beats">0</div>
+      <div class="sc-lbl">Beats</div>
     </div>
-    <div class="stat-cell">
-      <div class="stat-cell-val" id="s-clean" style="color:var(--green)">0</div>
-      <div class="stat-cell-lbl">Clean</div>
+    <div class="sc">
+      <div class="sc-val" id="s-clean" style="color:var(--green)">0</div>
+      <div class="sc-lbl">Clean</div>
     </div>
-    <div class="stat-cell">
-      <div class="stat-cell-val" id="s-flagged" style="color:var(--yellow)">0</div>
-      <div class="stat-cell-lbl">Flagged</div>
+    <div class="sc">
+      <div class="sc-val" id="s-flagged" style="color:var(--yellow)">0</div>
+      <div class="sc-lbl">Flagged</div>
     </div>
-    <div class="stat-cell">
-      <div class="stat-cell-val" id="s-dic" style="color:var(--purple)">0</div>
-      <div class="stat-cell-lbl">Dicrotic</div>
+    <div class="sc">
+      <div class="sc-val" id="s-dic" style="color:var(--purple)">0</div>
+      <div class="sc-lbl">Dicrotic</div>
     </div>
-    <div class="stat-cell">
-      <div class="stat-cell-val" id="s-markers">0</div>
-      <div class="stat-cell-lbl">Markers</div>
+    <div class="sc">
+      <div class="sc-val" id="s-markers">0</div>
+      <div class="sc-lbl">Markers</div>
     </div>
   </div>
 
-  <!-- LOG -->
+  <!-- Log -->
   <div id="log-wrap">
     <div id="log"></div>
-    <div id="motion-warn">⚠ Motion detected</div>
+    <div id="motion-warn">Motion detected — hold still</div>
   </div>
 
 </div>
@@ -468,16 +494,60 @@
   <div id="dock-idle">
     <button id="btn-start">Begin Validation Session</button>
   </div>
+
   <div id="dock-active">
-    <button id="btn-sync"><span class="sync-icon">⊕</span> Sync Marker</button>
-    <button id="btn-beep">
-      <span class="beep-icon">🔇</span>
-      <span id="beep-label">Beep</span>
-    </button>
-    <button id="btn-stop">
-      <span class="stop-icon">⏹</span>
-      <span>Export</span>
-    </button>
+    <!-- Row 1: primary actions -->
+    <div id="dock-row1">
+      <button id="btn-sync">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/></svg>
+        Sync Marker
+      </button>
+      <button id="btn-stop">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+        Export
+      </button>
+    </div>
+
+    <!-- Row 2: scrollable pills -->
+    <div id="dock-row2">
+
+      <button class="dock-pill" id="btn-beep">
+        <span class="pill-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+          </svg>
+        </span>
+        Pulse Beep
+      </button>
+
+      <button class="dock-pill" id="btn-tone">
+        <span class="pill-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+          </svg>
+        </span>
+        Test Tone
+      </button>
+
+      <button class="dock-pill" id="btn-knob">
+        <span class="pill-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/>
+          </svg>
+        </span>
+        PAT Knob
+      </button>
+
+      <button class="dock-pill" id="btn-lights">
+        <span class="pill-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <circle cx="12" cy="12" r="5"/><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+          </svg>
+        </span>
+        Torch Flash
+      </button>
+
+    </div>
   </div>
 </div>
 
@@ -496,50 +566,53 @@
   }
 })();
 
-// ── Core modules ──
+// ── Core ──
 const { WakeLockCtrl, BeatDetector, AudioEngine, MotionDetector } = window.ePATCore;
 
-// ── App state ──
-const IBI_CHANGE_THRESHOLD = 0.30;
+// ── Constants ──
+const IBI_THRESHOLD = 0.30;
 const SQI_GOOD = 0.008, SQI_WARN = 0.003;
 const WAVE_MAX = 200;
 
-let isRecording = false;
-let sessionStartTime = 0;
+// ── State ──
+let isRecording = false, sessionStartTime = 0;
 let timerRaf = null, motionInterval = null;
-
 let waveBuffer = [];
 let lastIbi = 0, cleanBeats = 0, flaggedBeats = 0;
 let currentSqi = 0, sqiBadSec = 0, lastSqiTime = 0;
-
 let pulseBeepOn = false;
 let knobOn = false, knobValue = 0, knobAngle = 0;
 let knobDragging = false, knobCx = 0, knobCy = 0, knobLastAngle = 0;
 let avgPeriod = 0, instPeriod = 0;
-
 let validationData = {};
-let ibiFlags = [], sqiSeries = [], dicroticList = [], knobTimings = [];
+let ibiFlags = [], sqiSeries = [], dicroticList = [], knobTimings = [], toneTs = [];
 
 // ── UI refs ──
 const $ = id => document.getElementById(id);
 const ui = {
-  flash: $('flash'), sessionSheet: $('session-sheet'),
-  sessionId: $('session-id'), btnBegin: $('btn-begin'), btnCancel: $('btn-cancel'),
+  flash: $('flash'),
+  sessionSheet: $('session-sheet'), sessionId: $('session-id'),
+  btnBegin: $('btn-begin'), btnCancel: $('btn-cancel'),
   timer: $('timer'),
-  fingerDot: $('finger-dot'), fingerText: $('finger-text'), sqiBadge: $('sqi-badge'),
-  waveCanvas: $('wave-canvas'), beatLine: $('beat-line'),
+  fingerDot: $('finger-dot'), fingerText: $('finger-text'),
+  sqiBadge: $('sqi-badge'),
+  waveCanvas: $('wave-canvas'), camCanvas: $('cam-canvas'), beatLine: $('beat-line'),
   bpmVal: $('bpm-value'),
   sBeats: $('s-beats'), sClean: $('s-clean'), sFlagged: $('s-flagged'),
   sDic: $('s-dic'), sMarkers: $('s-markers'),
   log: $('log'), motionWarn: $('motion-warn'),
   dockIdle: $('dock-idle'), dockActive: $('dock-active'),
-  btnStart: $('btn-start'), btnSync: $('btn-sync'), btnBeep: $('btn-beep'),
-  beepLabel: $('beep-label'), btnStop: $('btn-stop'),
-  knobSheet: $('knob-sheet'), btnOpenKnob: $('btn-open-knob'), btnCloseKnob: $('btn-close-knob'),
+  btnStart: $('btn-start'), btnSync: $('btn-sync'), btnStop: $('btn-stop'),
+  btnBeep: $('btn-beep'), btnTone: $('btn-tone'),
+  btnKnob: $('btn-knob'), btnLights: $('btn-lights'),
+  knobSheet: $('knob-sheet'), btnCloseKnob: $('btn-close-knob'),
   dial: $('dial'), knobPhaseVal: $('knob-phase-val'), knobTonesVal: $('knob-tones-val'),
 };
 
 // ── Waveform ──
+let camCtx = null;
+let videoEl = null;
+
 function drawWave() {
   const canvas = ui.waveCanvas;
   const dpr = window.devicePixelRatio || 1;
@@ -554,13 +627,13 @@ function drawWave() {
   let mn = waveBuffer[0], mx = waveBuffer[0];
   for (const v of waveBuffer) { if (v < mn) mn = v; if (v > mx) mx = v; }
   const range = mx - mn || 0.001;
-  const pad = 12 * dpr, xStep = (W * dpr) / WAVE_MAX;
+  const pad = 10 * dpr, xStep = (W * dpr) / WAVE_MAX;
   const xOff = (WAVE_MAX - waveBuffer.length) * xStep;
 
-  // Glow pass
+  // Glow
   ctx.beginPath();
-  ctx.strokeStyle = 'rgba(255,69,58,0.25)';
-  ctx.lineWidth = 6 * dpr; ctx.lineJoin = 'round';
+  ctx.strokeStyle = 'rgba(255,69,58,0.22)';
+  ctx.lineWidth = 7 * dpr; ctx.lineJoin = 'round';
   for (let i = 0; i < waveBuffer.length; i++) {
     const x = xOff + i * xStep;
     const y = pad + ((mx - waveBuffer[i]) / range) * (H * dpr - pad * 2);
@@ -568,7 +641,7 @@ function drawWave() {
   }
   ctx.stroke();
 
-  // Sharp pass
+  // Line
   ctx.beginPath();
   ctx.strokeStyle = '#ff453a';
   ctx.lineWidth = 1.5 * dpr;
@@ -578,6 +651,13 @@ function drawWave() {
     i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
   }
   ctx.stroke();
+}
+
+function drawCam() {
+  if (!videoEl || !camCtx || videoEl.readyState < 2) return;
+  const c = ui.camCanvas;
+  if (c.width !== 52 || c.height !== 52) { c.width = 52; c.height = 52; }
+  camCtx.drawImage(videoEl, 0, 0, 52, 52);
 }
 
 // ── Timer ──
@@ -597,13 +677,12 @@ function triggerFlash() {
 }
 
 // ── Log ──
-function log(cls, msg) {
+function logLine(cls, msg) {
   const d = document.createElement('div');
   d.className = cls; d.textContent = msg;
   ui.log.appendChild(d);
   ui.log.scrollTop = ui.log.scrollHeight;
-  // Keep log from growing infinitely
-  while (ui.log.children.length > 300) ui.log.removeChild(ui.log.firstChild);
+  if (ui.log.children.length > 400) ui.log.removeChild(ui.log.firstChild);
 }
 
 // ── SQI ──
@@ -613,15 +692,12 @@ function handleSqi(sqi) {
   if (lastSqiTime > 0 && sqi < SQI_WARN) sqiBadSec += (now - lastSqiTime) / 1000;
   lastSqiTime = now;
   sqiSeries.push({ time: now, sqi: Math.round(sqi * 100000) / 100000 });
-
   const pct = (sqi * 100).toFixed(2);
   ui.sqiBadge.textContent = `SQI ${pct}%`;
-  if (sqi >= SQI_GOOD) { ui.sqiBadge.className = 'good'; }
-  else if (sqi >= SQI_WARN) { ui.sqiBadge.className = 'warn'; }
-  else { ui.sqiBadge.className = 'bad'; }
+  ui.sqiBadge.className = sqi >= SQI_GOOD ? 'good' : sqi >= SQI_WARN ? 'warn' : 'bad';
 }
 
-// ── IBI ──
+// ── Beat ──
 function handleBeat(beat) {
   validationData.beatTimestamps.push(beat.time);
   avgPeriod = beat.averagePeriod;
@@ -631,16 +707,14 @@ function handleBeat(beat) {
   let flag = null;
   if (lastIbi > 0) {
     const chg = Math.abs(ibiMs - lastIbi) / lastIbi;
-    if (chg > IBI_CHANGE_THRESHOLD) {
+    if (chg > IBI_THRESHOLD) {
       flag = { type: 'successive_diff', magnitude: Math.round(chg * 1000) / 10, prevIbi: Math.round(lastIbi), currentIbi: Math.round(ibiMs) };
       flaggedBeats++;
     } else cleanBeats++;
   } else cleanBeats++;
   lastIbi = ibiMs;
 
-  const entry = { time: beat.time, ibiMs: Math.round(ibiMs * 10) / 10, flag };
-  ibiFlags.push(entry);
-
+  ibiFlags.push({ time: beat.time, ibiMs: Math.round(ibiMs * 10) / 10, flag });
   const total = cleanBeats + flaggedBeats;
   ui.sBeats.textContent = total;
   ui.sClean.textContent = cleanBeats;
@@ -648,23 +722,17 @@ function handleBeat(beat) {
   ui.bpmVal.textContent = Math.round(beat.averageBPM);
 
   const elapsed = ((beat.time - sessionStartTime) / 1000).toFixed(1);
-  if (flag) {
-    log('ev-flag', `[${elapsed}s] ${Math.round(ibiMs)}ms ⚠ Δ${flag.magnitude}% (${flag.prevIbi}→${flag.currentIbi})`);
-  } else {
-    log('ev-clean', `[${elapsed}s] ${Math.round(ibiMs)}ms ✓`);
-  }
+  if (flag) logLine('ev-flag', `[${elapsed}s] ${Math.round(ibiMs)}ms  D${flag.magnitude}%  (${flag.prevIbi}->${flag.currentIbi})`);
+  else      logLine('ev-clean', `[${elapsed}s] ${Math.round(ibiMs)}ms  ok`);
 
-  // Beat line flash
   ui.beatLine.classList.add('flash');
   setTimeout(() => ui.beatLine.classList.remove('flash'), 80);
 
-  // Pulse beep
   if (pulseBeepOn) {
     AudioEngine.resume(); AudioEngine.play();
     validationData.pulseBeepTimestamps.push(performance.now());
   }
 
-  // PAT knob
   if (knobOn && avgPeriod > 0) {
     const delay = (avgPeriod / 2) * knobValue;
     const dNow = delay < 0 ? instPeriod + delay : delay;
@@ -687,36 +755,57 @@ function addMarker(type = 'manual') {
   ui.sMarkers.textContent = count;
   triggerFlash();
   const elapsed = ((t - sessionStartTime) / 1000).toFixed(1);
-  log('ev-marker', `[${elapsed}s] ── SYNC MARKER #${count} (${type}) ──`);
+  logLine('ev-marker', `[${elapsed}s]  SYNC MARKER #${count}  (${type})`);
+}
+
+// ── Torch flash helper (for LightsOnOff-style tests) ──
+let torchOn = false;
+async function toggleTorch() {
+  if (!isRecording) return;
+  // Access the active track through BeatDetector diagnostics
+  // We flip torch via the captured stream track
+  try {
+    const track = BeatDetector._track; // if exposed; otherwise addMarker only
+    if (track && track.getCapabilities && track.getCapabilities().torch) {
+      torchOn = !torchOn;
+      await track.applyConstraints({ advanced: [{ torch: torchOn }] });
+    }
+  } catch(e) {}
+  // Always drop a sync marker when torch is toggled
+  addMarker('torch');
+  ui.btnLights.classList.toggle('on-yellow', torchOn);
+  ui.btnLights.querySelector('.pill-icon + *') || null;
+  // Update label text node
+  const txt = ui.btnLights.lastChild;
+  if (txt && txt.nodeType === 3) txt.textContent = torchOn ? ' Torch ON' : ' Torch Flash';
 }
 
 // ── Start ──
 async function startRecording() {
   const sid = ui.sessionId.value.trim() || `VALIDATE_${Date.now()}`;
-
   validationData = {
     sessionID: sid, browserTimeStart: 0,
     beatTimestamps: [], syncMarkers: [], toneTimestamps: [],
     pulseBeepTimestamps: [], knobToneTimings: [],
     ibiFlags: [], sqiTimeSeries: [], dicroticRejections: [], qualitySummary: {}
   };
-  ibiFlags = []; sqiSeries = []; dicroticList = []; knobTimings = [];
+  ibiFlags = []; sqiSeries = []; dicroticList = []; knobTimings = []; toneTs = [];
   waveBuffer = []; lastIbi = 0; cleanBeats = 0; flaggedBeats = 0;
   currentSqi = 0; sqiBadSec = 0; lastSqiTime = 0;
   pulseBeepOn = false; knobOn = false; knobValue = 0; knobAngle = 0;
-  avgPeriod = 0; instPeriod = 0;
+  avgPeriod = 0; instPeriod = 0; torchOn = false;
 
   ui.bpmVal.textContent = '--';
   ui.sBeats.textContent = ui.sClean.textContent = ui.sFlagged.textContent = ui.sDic.textContent = ui.sMarkers.textContent = '0';
   ui.log.innerHTML = '';
   ui.sqiBadge.textContent = 'SQI --'; ui.sqiBadge.className = '';
   ui.fingerDot.classList.remove('on'); ui.fingerText.textContent = 'No signal';
-  ui.beepLabel.textContent = 'Beep'; ui.btnBeep.classList.remove('on');
-  ui.btnBeep.querySelector('.beep-icon').textContent = '🔇';
-  ui.btnOpenKnob.className = ''; ui.dial.style.transform = '';
+  ui.btnBeep.classList.remove('on', 'on-green');
+  ui.btnKnob.classList.remove('on', 'on-yellow');
+  ui.btnLights.classList.remove('on-yellow');
+  ui.dial.style.transform = '';
   ui.knobPhaseVal.textContent = '0.000'; ui.knobTonesVal.textContent = '0 tones';
 
-  // Close sheet, show active dock
   ui.sessionSheet.style.display = 'none';
   ui.dockIdle.style.display = 'none';
   ui.dockActive.classList.add('on');
@@ -727,7 +816,11 @@ async function startRecording() {
   await WakeLockCtrl.request();
 
   MotionDetector.start(
-    () => { ui.motionWarn.classList.add('on'); clearTimeout(ui.motionWarn._t); ui.motionWarn._t = setTimeout(() => ui.motionWarn.classList.remove('on'), 2000); },
+    () => {
+      ui.motionWarn.classList.add('on');
+      clearTimeout(ui.motionWarn._t);
+      ui.motionWarn._t = setTimeout(() => ui.motionWarn.classList.remove('on'), 2000);
+    },
     () => addMarker('tap')
   );
   motionInterval = setInterval(() => { if (isRecording) MotionDetector.checkMovement(); }, 100);
@@ -737,8 +830,11 @@ async function startRecording() {
   isRecording = true;
   updateTimer();
 
+  videoEl = $('video-feed');
+  camCtx = ui.camCanvas.getContext('2d');
+
   await BeatDetector.start({
-    video: $('video-feed'),
+    video: videoEl,
     canvas: $('sampling-canvas'),
     onBeatCb: handleBeat,
     onFingerChangeCb: (present) => {
@@ -750,17 +846,18 @@ async function startRecording() {
       waveBuffer.push(sample);
       if (waveBuffer.length > WAVE_MAX) waveBuffer.shift();
       drawWave();
+      drawCam();
     },
     onSqiUpdateCb: handleSqi,
     onDicroticRejectCb: (info) => {
       dicroticList.push(info);
       ui.sDic.textContent = dicroticList.length;
       const elapsed = ((info.time - sessionStartTime) / 1000).toFixed(1);
-      log('ev-dic', `[${elapsed}s] Dicrotic ✕ ${Math.round(info.rejectedIbi)}ms (exp ${Math.round(info.expectedPeriod)}ms)`);
+      logLine('ev-dic', `[${elapsed}s] dicrotic x  ${Math.round(info.rejectedIbi)}ms  (exp ${Math.round(info.expectedPeriod)}ms)`);
     },
   });
 
-  log('ev-info', `Session started: ${sid}`);
+  logLine('ev-info', `started: ${sid}`);
 }
 
 // ── Stop & export ──
@@ -771,6 +868,7 @@ async function stopAndExport() {
   MotionDetector.stop();
   await BeatDetector.stop();
   WakeLockCtrl.release();
+  torchOn = false;
 
   ui.dockActive.classList.remove('on');
   ui.dockIdle.style.display = 'flex';
@@ -783,13 +881,14 @@ async function stopAndExport() {
   validationData.sqiTimeSeries = sqiSeries;
   validationData.dicroticRejections = dicroticList;
   validationData.knobToneTimings = knobTimings;
+  validationData.toneTimestamps = toneTs;
   validationData.qualitySummary = {
-    totalBeats: total, cleanBeats, flaggedBeats: flaggedBeats,
+    totalBeats: total, cleanBeats, flaggedBeats,
     flagRate: total > 0 ? Math.round(flaggedBeats / total * 10000) / 100 : 0,
     dicroticRejectsCount: dicroticList.length,
     sqiBadSeconds: Math.round(sqiBadSec * 10) / 10,
     sqiFinalValue: Math.round(currentSqi * 100000) / 100000,
-    ibiChangeThreshold: IBI_CHANGE_THRESHOLD,
+    ibiChangeThreshold: IBI_THRESHOLD,
     sqiGoodThreshold: SQI_GOOD, sqiWarnThreshold: SQI_WARN
   };
 
@@ -799,32 +898,35 @@ async function stopAndExport() {
   a.href = url; a.download = `${validationData.sessionID}_CNAP_SYNC.json`;
   a.click(); URL.revokeObjectURL(url);
 
-  log('ev-info', `Session exported: ${validationData.sessionID}`);
+  logLine('ev-info', `exported: ${validationData.sessionID}`);
 }
 
-// ── Pulse beep toggle ──
+// ── Beep toggle ──
 function toggleBeep() {
   pulseBeepOn = !pulseBeepOn;
-  ui.btnBeep.classList.toggle('on', pulseBeepOn);
-  ui.btnBeep.querySelector('.beep-icon').textContent = pulseBeepOn ? '🔊' : '🔇';
-  ui.beepLabel.textContent = pulseBeepOn ? 'Beep ON' : 'Beep';
+  ui.btnBeep.classList.toggle('on-green', pulseBeepOn);
+}
+
+// ── Test tone ──
+function playTone() {
+  if (!isRecording) return;
+  AudioEngine.resume(); AudioEngine.play();
+  const t = performance.now();
+  toneTs.push(t);
+  const elapsed = ((t - sessionStartTime) / 1000).toFixed(1);
+  logLine('ev-info', `[${elapsed}s] test tone`);
 }
 
 // ── Knob ──
 function openKnob() {
   knobOn = true;
   ui.knobSheet.classList.add('on');
-  ui.btnOpenKnob.classList.add('on');
+  ui.btnKnob.classList.add('on-yellow');
   pulseBeepOn = false;
-  ui.btnBeep.classList.remove('on');
-  ui.btnBeep.querySelector('.beep-icon').textContent = '🔇';
-  ui.beepLabel.textContent = 'Beep';
+  ui.btnBeep.classList.remove('on-green');
 }
-function closeKnob() {
-  ui.knobSheet.classList.remove('on');
-}
+function closeKnob() { ui.knobSheet.classList.remove('on'); }
 
-// Dial interaction
 const dialEl = ui.dial;
 dialEl.addEventListener('pointerdown', (e) => {
   e.preventDefault(); knobDragging = true;
@@ -853,26 +955,30 @@ window.addEventListener('pointerup', () => { knobDragging = false; });
 // ── Wire events ──
 ui.btnStart.addEventListener('click', () => {
   ui.sessionSheet.style.display = 'flex';
-  ui.sessionId.focus();
+  setTimeout(() => ui.sessionId.focus(), 100);
 });
 ui.btnBegin.addEventListener('click', startRecording);
 ui.btnCancel.addEventListener('click', () => { ui.sessionSheet.style.display = 'none'; });
+ui.sessionId.addEventListener('keydown', (e) => { if (e.key === 'Enter') { ui.sessionId.blur(); startRecording(); } });
 
-// Sync: both touch and click (touchstart for zero-latency on iOS)
+// touchstart for zero-latency on sync button
 ui.btnSync.addEventListener('touchstart', (e) => { e.preventDefault(); addMarker('manual'); }, { passive: false });
 ui.btnSync.addEventListener('click', () => addMarker('manual'));
+
+ui.btnStop.addEventListener('click', stopAndExport);
 
 ui.btnBeep.addEventListener('touchstart', (e) => { e.preventDefault(); toggleBeep(); }, { passive: false });
 ui.btnBeep.addEventListener('click', toggleBeep);
 
-ui.btnStop.addEventListener('click', stopAndExport);
-ui.btnOpenKnob.addEventListener('click', openKnob);
+ui.btnTone.addEventListener('touchstart', (e) => { e.preventDefault(); playTone(); }, { passive: false });
+ui.btnTone.addEventListener('click', playTone);
+
+ui.btnKnob.addEventListener('click', openKnob);
 ui.btnCloseKnob.addEventListener('click', closeKnob);
 
-// Enter key on session ID field
-ui.sessionId.addEventListener('keydown', (e) => { if (e.key === 'Enter') { ui.sessionId.blur(); startRecording(); } });
+ui.btnLights.addEventListener('touchstart', (e) => { e.preventDefault(); toggleTorch(); }, { passive: false });
+ui.btnLights.addEventListener('click', toggleTorch);
 
-// Resize wave on orientation change
 window.addEventListener('resize', () => { if (waveBuffer.length > 0) drawWave(); });
 </script>
 </body>
