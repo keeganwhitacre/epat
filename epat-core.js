@@ -314,7 +314,7 @@
             recentPeriods.push(instantPeriod);
             if (recentPeriods.length > MAX_RECENT_PERIODS) recentPeriods.shift();
 
-            averagePeriod = recentPeriods.reduce((a, b) => a + b, 0) / recentPeriods.length;
+            averagePeriod = getMedian(recentPeriods);
             const averageBPM = 60 / averagePeriod;
 
             if (onBeat) onBeat({ instantBPM, averageBPM, instantPeriod, averagePeriod, time: beatTime });
