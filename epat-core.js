@@ -175,6 +175,11 @@
     const SQI_INTERVAL_MS = 1000;
     const SQI_WINDOW_S = 2;
 
+    // --- Dynamic Switcher State ---
+    let activeChannel = 'green'; // Default starting assumption
+    let isCalibrating = true; 
+    let calibrationStartTime = 0;
+
     // --- frame timing diagnostics (vfr detection) ---
     let frameDeltaBuffer = [], frameDropCount = 0, totalFrames = 0;
 
@@ -239,6 +244,10 @@
         if (fingerDebounceCount >= FINGER_DEBOUNCE_FRAMES) {
           fingerPresent = looksLikeFinger;
           fingerDebounceCount = 0;
+          if (fingerPresent) {
+            isCalibrating = true;
+            calibrationStartTime = performance.now();
+          }
           if (onFingerChange) onFingerChange(fingerPresent);
         }
       }
@@ -300,12 +309,39 @@
         currentSqi = computeSqi(rawBuffer);
         currentSqiGreen = computeSqi(rawBufferGreen);
         lastSqiTime = now;
-        if (onSqiUpdate) onSqiUpdate(currentSqi, currentSqiGreen);
+
+        // --- DYNAMIC SWITCHER LOGIC ---
+        if (isCalibrating) {
+          // Lock in the best channel after 3 seconds of calibration
+          if (now - calibrationStartTime > 3000) {
+            activeChannel = currentSqiGreen > currentSqi ? 'green' : 'red';
+            isCalibrating = false;
+            // Force reset to learn the chosen channel perfectly
+            WabpDetector.reset(actualFPS);
+            lastBeatTime = 0;
+          }
+        } else {
+          // Graceful Failover: Only switch if current is failing AND other is viable
+          const CRITICAL_SQI = 0.005;
+          if (activeChannel === 'green' && currentSqiGreen < CRITICAL_SQI && currentSqi > CRITICAL_SQI) {
+            activeChannel = 'red';
+            WabpDetector.reset(actualFPS); // Purge old thresholds
+            lastBeatTime = 0;              // Force re-anchor
+          } else if (activeChannel === 'red' && currentSqi < CRITICAL_SQI && currentSqiGreen > CRITICAL_SQI) {
+            activeChannel = 'green';
+            WabpDetector.reset(actualFPS);
+            lastBeatTime = 0;
+          }
+        }
+
+        if (onSqiUpdate) onSqiUpdate(currentSqi, currentSqiGreen, activeChannel);
       }
 
-      if (fingerPresent && (now - startTime > 2000)) {
-        // Core beat detection STILL uses red
-        const result = WabpDetector.processSample(filtered);
+      // --- ROUTE THE ACTIVE SIGNAL TO THE DETECTOR ---
+      if (fingerPresent && !isCalibrating) {
+        const signalToProcess = activeChannel === 'green' ? filteredGreen : filtered;
+        const result = WabpDetector.processSample(signalToProcess);
+        
         if (result.detected) {
           const beatTime = now - ((result.framesAgo || 1) * (1000 / actualFPS));
           const interval = beatTime - lastBeatTime;
@@ -491,6 +527,12 @@
         lastBeatTime = 0; prevAcceptedBeatTime = 0; prevAcceptedIbi = 0;
         fingerPresent = false; fingerDebounceCount = 0;
         lastSqiTime = 0; currentSqi = 0; currentSqiGreen = 0;
+        
+        // Reset dynamic switcher
+        activeChannel = 'green';
+        isCalibrating = true;
+        calibrationStartTime = 0;
+        
         frameDeltaBuffer = []; frameDropCount = 0; totalFrames = 0;
         clipCount = 0; clipTotal = 0;
         dicroticRejectCount = 0;
