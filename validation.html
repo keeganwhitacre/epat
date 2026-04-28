@@ -742,7 +742,7 @@ function handleBeat(beat) {
 
   if (knobOn && avgPeriod > 0) {
     const delay = (avgPeriod / 2) * knobValue;
-    const dNow = delay < 0 ? instPeriod + delay : delay;
+    const dNow = delay < 0 ? currentAveragePeriod + delay : delay;
     if (dNow > 0 && dNow < 3) {
       const timing = AudioEngine.scheduleAt(dNow);
       if (timing) {
