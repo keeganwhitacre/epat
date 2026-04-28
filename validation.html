@@ -588,6 +588,7 @@ let validationData = {};
 let ibiFlags = [], sqiSeries = [], dicroticList = [], knobTimings = [], toneTs = [];
   let currentSqiGreen = 0;
 let rawSamples = [];
+  let currentActiveChannel = 'green';
 
 // ── UI refs ──
 const $ = id => document.getElementById(id);
@@ -864,9 +865,15 @@ async function startRecording() {
         });
       }
     },
-    onSqiUpdateCb: (sqi, sqiGreen) => {
+    onSqiUpdateCb: (sqi, sqiGreen, activeChannel) => {
+      // Log if a swap happened mid-session
+      if (activeChannel !== currentActiveChannel && isRecording) {
+        const elapsed = ((performance.now() - sessionStartTime) / 1000).toFixed(1);
+        logLine('ev-flag', `[${elapsed}s] SWAP TO ${activeChannel.toUpperCase()}`);
+      }
+      currentActiveChannel = activeChannel;
       currentSqiGreen = sqiGreen || 0;
-      handleSqi(sqi); // Keeps your existing Red UI logic intact
+      handleSqi(activeChannel === 'green' ? sqiGreen : sqi); // Show the active SQI in the UI
     },
     onDicroticRejectCb: (info) => {
       dicroticList.push(info);
