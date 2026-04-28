@@ -11,19 +11,19 @@
  * do not modify without re-running the validation sync session.
  *
  * exposes a single global namespace: window.ePATCore
- *   - WakeLockCtrl   : screen wake lock (ios/android)
- *   - WabpDetector   : zong et al. 2003 wabp onset algorithm
- *   - BeatDetector   : full ppg pipeline (camera → filter → wabp → beats)
- *   - AudioEngine    : web audio scheduler with refractory gate
- *   - MotionDetector : accelerometer movement watchdog
+ * - WakeLockCtrl   : screen wake lock (ios/android)
+ * - WabpDetector   : zong et al. 2003 wabp onset algorithm
+ * - BeatDetector   : full ppg pipeline (camera → filter → wabp → beats)
+ * - AudioEngine    : web audio scheduler with refractory gate
+ * - MotionDetector : accelerometer movement watchdog
  *
  * api contract notes:
- *   - BeatDetector.setCallbacks() does NOT reset filter/detector state.
- *     this is deliberate — filter continuity across trials is the whole
- *     reason the callbacks are swappable mid-stream.
- *   - only BeatDetector.stop() fully tears down camera + filter state.
- *   - all timestamps use performance.now() (monotonic, ms since page load).
- *     wall-clock anchoring is the responsibility of the caller.
+ * - BeatDetector.setCallbacks() does NOT reset filter/detector state.
+ * this is deliberate — filter continuity across trials is the whole
+ * reason the callbacks are swappable mid-stream.
+ * - only BeatDetector.stop() fully tears down camera + filter state.
+ * - all timestamps use performance.now() (monotonic, ms since page load).
+ * wall-clock anchoring is the responsibility of the caller.
  * ============================================================ */
 
 (function () {
@@ -123,7 +123,7 @@
               Ta += (maxVal - Ta) / 10; T1 = Ta / 3;
               lastOnsetIndex = sampleIndex; noDetectTimer = 0;
               const framesAgo = (seLen - 1) - onsetIdx;
-              return { detected: true, onsetIndex: sampleIndex - framesAgo, peakEnergy: maxVal };
+              return { detected: true, onsetIndex: sampleIndex - framesAgo, framesAgo, peakEnergy: maxVal };
             }
           }
         }
@@ -140,7 +140,7 @@
   // ============================================================
   // PPG BEAT DETECTOR (WABP onset, dynamic framerate, rAF loop)
   // ------------------------------------------------------------
-  // pipeline: camera red channel → iir bandpass 0.67–3.33 hz → wabp.
+  // pipeline: camera red/green channel → iir bandpass 0.67–3.33 hz → wabp.
   // dicrotic rejection via median-anchored 60% gate. median not mean
   // so a single fast outlier can't poison the running period.
   // camera selection excludes front + physical lens labels (ultra/tele)
@@ -156,7 +156,12 @@
     let fingerPresent = false, fingerDebounceCount = 0;
     const FINGER_DEBOUNCE_FRAMES = 8;
 
+    // Red Buffers
     let rawBuffer = [], timeBuffer = [], filteredBuffer = [];
+    
+    // Green Buffers
+    let rawBufferGreen = [], filteredBufferGreen = [];
+
     let instantPeriod = 0, averagePeriod = 0, lastBeatTime = 0;
     let prevAcceptedBeatTime = 0, prevAcceptedIbi = 0;
     let recentPeriods = [];
@@ -166,7 +171,7 @@
     let dicroticRejectCount = 0;
 
     // --- sqi (signal quality index) via perfusion index ---
-    let lastSqiTime = 0, currentSqi = 0;
+    let lastSqiTime = 0, currentSqi = 0, currentSqiGreen = 0;
     const SQI_INTERVAL_MS = 1000;
     const SQI_WINDOW_S = 2;
 
@@ -176,17 +181,33 @@
     // --- brightness clipping diagnostics (isp auto-exposure) ---
     let clipCount = 0, clipTotal = 0;
 
-    // bandpass filter — coefficients recomputed when actualFPS is known
-    let HP_ALPHA = 0, LP_ALPHA = 0, hpState = { x1: 0, y1: 0 }, lpState = { y1: 0 };
+    // bandpass filters — coefficients recomputed when actualFPS is known
+    let HP_ALPHA = 0, LP_ALPHA = 0;
+    
+    // Red filter state
+    let hpState = { x1: 0, y1: 0 }, lpState = { y1: 0 };
+    // Green filter state
+    let hpStateGreen = { x1: 0, y1: 0 }, lpStateGreen = { y1: 0 };
 
     function computeFilterCoeffs(sr) {
       const hpRC = 1 / (2 * Math.PI * 0.67), lpRC = 1 / (2 * Math.PI * 3.33);
       HP_ALPHA = hpRC / (hpRC + 1 / sr); LP_ALPHA = (1 / sr) / (lpRC + 1 / sr);
     }
+
+    // Red filter functions
     function highpass(x) { const y = HP_ALPHA * (hpState.y1 + x - hpState.x1); hpState.x1 = x; hpState.y1 = y; return y; }
     function lowpass(x) { const y = lpState.y1 + LP_ALPHA * (x - lpState.y1); lpState.y1 = y; return y; }
     function bandpass(x) { return lowpass(highpass(x)); }
-    function resetFilters() { hpState = { x1: 0, y1: 0 }; lpState = { y1: 0 }; }
+    
+    // Green filter functions
+    function highpassGreen(x) { const y = HP_ALPHA * (hpStateGreen.y1 + x - hpStateGreen.x1); hpStateGreen.x1 = x; hpStateGreen.y1 = y; return y; }
+    function lowpassGreen(x) { const y = lpStateGreen.y1 + LP_ALPHA * (x - lpStateGreen.y1); lpStateGreen.y1 = y; return y; }
+    function bandpassGreen(x) { return lowpassGreen(highpassGreen(x)); }
+
+    function resetFilters() { 
+      hpState = { x1: 0, y1: 0 }; lpState = { y1: 0 }; 
+      hpStateGreen = { x1: 0, y1: 0 }; lpStateGreen = { y1: 0 };
+    }
 
     function getMedian(arr) {
       if (!arr.length) return 0;
@@ -198,7 +219,7 @@
     // callbacks — swappable mid-stream via setCallbacks()
     let onBeat = null, onFingerChange = null, onPPGSample = null, onSqiUpdate = null, onDicroticReject = null;
 
-    function extractRedMean() {
+    function extractMeans() {
       ctx.drawImage(video, 0, 0, IMAGE_SIZE, IMAGE_SIZE);
       const d = ctx.getImageData(0, 0, IMAGE_SIZE, IMAGE_SIZE).data;
       let r = 0, g = 0, b = 0, n = 0;
@@ -221,13 +242,13 @@
           if (onFingerChange) onFingerChange(fingerPresent);
         }
       }
-      return rMean;
+      return { red: rMean, green: gMean };
     }
 
-    function computeSqi() {
+    function computeSqi(targetBuffer) {
       const windowSamples = Math.round(actualFPS * SQI_WINDOW_S);
-      if (rawBuffer.length < windowSamples) return 0;
-      const window = rawBuffer.slice(-windowSamples);
+      if (targetBuffer.length < windowSamples) return 0;
+      const window = targetBuffer.slice(-windowSamples);
       let min = window[0], max = window[0], sum = 0;
       for (let i = 0; i < window.length; i++) {
         if (window[i] < min) min = window[i];
@@ -242,7 +263,14 @@
     function processFrame() {
       if (!running) return;
       const now = performance.now();
-      const rawValue = extractRedMean(), filtered = bandpass(rawValue);
+      
+      const means = extractMeans();
+      const rawValue = means.red;
+      const rawValueGreen = means.green;
+      
+      const filtered = bandpass(rawValue);
+      const filteredGreen = bandpassGreen(rawValueGreen);
+      
       const BUFFER_SIZE = Math.round(actualFPS * BUFFER_SECONDS);
 
       // track actual inter-frame timing
@@ -256,20 +284,30 @@
       }
       lastFrameTime = now;
 
+      // Buffer red
       rawBuffer.push(rawValue); timeBuffer.push(now); filteredBuffer.push(filtered);
-      if (rawBuffer.length > BUFFER_SIZE) { rawBuffer.shift(); timeBuffer.shift(); filteredBuffer.shift(); }
-      if (onPPGSample) onPPGSample(filtered);
+      // Buffer green
+      rawBufferGreen.push(rawValueGreen); filteredBufferGreen.push(filteredGreen);
+
+      if (rawBuffer.length > BUFFER_SIZE) { 
+        rawBuffer.shift(); timeBuffer.shift(); filteredBuffer.shift(); 
+        rawBufferGreen.shift(); filteredBufferGreen.shift();
+      }
+      
+      if (onPPGSample) onPPGSample(filtered, filteredGreen);
 
       if (fingerPresent && (now - lastSqiTime > SQI_INTERVAL_MS)) {
-        currentSqi = computeSqi();
+        currentSqi = computeSqi(rawBuffer);
+        currentSqiGreen = computeSqi(rawBufferGreen);
         lastSqiTime = now;
-        if (onSqiUpdate) onSqiUpdate(currentSqi);
+        if (onSqiUpdate) onSqiUpdate(currentSqi, currentSqiGreen);
       }
 
       if (fingerPresent && (now - startTime > 2000)) {
+        // Core beat detection STILL uses red
         const result = WabpDetector.processSample(filtered);
         if (result.detected) {
-          const beatTime = now - (1000 / actualFPS);
+          const beatTime = now - ((result.framesAgo || 1) * (1000 / actualFPS));
           const interval = beatTime - lastBeatTime;
 
           // signal drop re-anchor
@@ -287,21 +325,22 @@
           }
 
           // median-anchored dicrotic gate
-            let isDicrotic = false;
-            const DICROTIC_MIN_PERIODS = 3;
-            // Default to a safe 800ms (75 BPM) baseline while learning the first 3 beats
-            const expectedPeriodMs = recentPeriods.length >= DICROTIC_MIN_PERIODS 
-            ? getMedian(recentPeriods) * 1000 
-            : 800;
-            // 60% allows deep-breath rsa but blocks the notch (fires ~30–45% through cycle)
-            if (interval < expectedPeriodMs * 0.60) isDicrotic = true;
+          let isDicrotic = false;
+          const DICROTIC_MIN_PERIODS = 3;
+          // Default to a safe 800ms (75 BPM) baseline while learning the first 3 beats
+          const expectedPeriodMs = recentPeriods.length >= DICROTIC_MIN_PERIODS 
+          ? getMedian(recentPeriods) * 1000 
+          : 800;
+          
+          // 60% allows deep-breath rsa but blocks the notch (fires ~30–45% through cycle)
+          if (interval < expectedPeriodMs * 0.60) isDicrotic = true;
 
-            if (isDicrotic) {
+          if (isDicrotic) {
             dicroticRejectCount++;
             if (onDicroticReject) onDicroticReject({
                 time: beatTime,
                 rejectedIbi: interval,
-                expectedPeriod: expectedPeriodMs // <-- Use the warmup variable
+                expectedPeriod: expectedPeriodMs 
             });
             // do NOT update lastBeatTime — notch is ignored
           } else {
@@ -326,7 +365,7 @@
       animFrameId = requestAnimationFrame(processFrame);
     }
 
-async function startCamera() {
+    async function startCamera() {
       if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; }
 
       // prime permissions — ios enumerateDevices returns empty labels before permission
@@ -393,6 +432,12 @@ async function startCamera() {
           if (caps.torch) {
             await track.applyConstraints({ advanced: [{ torch: true }] });
             torchWorking = true;
+            // Re-read FPS after torch — iOS may have changed frame rate when switching
+            // exposure mode. If actualFPS was set from a 60fps negotiation attempt,
+            // WABP's LPERIOD_SAMPLES would be 480 (8s * 60) instead of 240 (8s * 30),
+            // causing ~16s calibration instead of ~8s.
+            const settingsAfterTorch = track.getSettings();
+            actualFPS = settingsAfterTorch.frameRate || actualFPS;
             break; // Success! Break out of the camera loop
           }
         } catch (e) {}
@@ -440,10 +485,12 @@ async function startCamera() {
 
         // reset all running state
         rawBuffer = []; timeBuffer = []; filteredBuffer = [];
+        rawBufferGreen = []; filteredBufferGreen = [];
+        
         recentPeriods = []; instantPeriod = 0; averagePeriod = 0;
         lastBeatTime = 0; prevAcceptedBeatTime = 0; prevAcceptedIbi = 0;
         fingerPresent = false; fingerDebounceCount = 0;
-        lastSqiTime = 0; currentSqi = 0;
+        lastSqiTime = 0; currentSqi = 0; currentSqiGreen = 0;
         frameDeltaBuffer = []; frameDropCount = 0; totalFrames = 0;
         clipCount = 0; clipTotal = 0;
         dicroticRejectCount = 0;
@@ -477,6 +524,7 @@ async function startCamera() {
 
       getActualFPS() { return actualFPS; },
       getSqi() { return currentSqi; },
+      getSqiGreen() { return currentSqiGreen; },
       getDicroticRejectCount() { return dicroticRejectCount; },
       getDiagnostics() {
         const avgDelta = frameDeltaBuffer.length
